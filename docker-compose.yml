@@ -16,6 +16,7 @@ services:
       - ${MOCK_DATA_DIR_HOST:-./data/backups}:/data/backups:ro
       - ./app:/srv/app
       - ./logs:/srv/logs
+      - ./debug:/srv/debug
     restart: unless-stopped
 
   an-postgres:

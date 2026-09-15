@@ -6,7 +6,7 @@ from datetime import datetime
 from uuid import UUID
 
 import pandas as pd
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, func
 from sqlalchemy.orm import Session
 
 from app.db.models import AnalysisEvent, AnalysisRun, MarketCurvePoint
@@ -99,3 +99,82 @@ def save_run(session: Session, result, *, marketplace: str, geo: str,
 
 def _f(value) -> float | None:
     return None if pd.isna(value) else float(value)
+
+
+# ---------- Чтение результатов для API ----------
+def list_catalog(session: Session) -> list[dict]:
+    """Доступные сочетания категория + гео + маркетплейс - для выбора на фронте."""
+    rows = session.execute(
+        select(AnalysisRun.category, AnalysisRun.geo, AnalysisRun.marketplace)
+        .distinct().order_by(AnalysisRun.category, AnalysisRun.geo)
+    ).all()
+    return [{"category": c, "geo": g, "marketplace": m} for c, g, m in rows]
+
+
+def latest_run(session: Session, *, category: str, geo: str, marketplace: str,
+               level: str, level_key: str, algorithm: str) -> AnalysisRun | None:
+    """Самый свежий снепшот по точке сетки."""
+    return session.scalar(
+        select(AnalysisRun).where(
+            AnalysisRun.category == category, AnalysisRun.geo == geo,
+            AnalysisRun.marketplace == marketplace, AnalysisRun.level == level,
+            AnalysisRun.level_key == level_key, AnalysisRun.algorithm == algorithm,
+        ).order_by(AnalysisRun.grid_point_at.desc()).limit(1)
+    )
+
+
+def list_levels(session: Session, *, category: str, geo: str, marketplace: str,
+                level: str) -> list[dict]:
+    """Какие снепшоты этого уровня посчитаны и по каким алгоритмам есть результат."""
+    subq = (select(AnalysisRun.level_key, AnalysisRun.algorithm,
+                   func.max(AnalysisRun.grid_point_at).label("last_point"))
+            .where(AnalysisRun.category == category, AnalysisRun.geo == geo,
+                   AnalysisRun.marketplace == marketplace, AnalysisRun.level == level)
+            .group_by(AnalysisRun.level_key, AnalysisRun.algorithm).subquery())
+
+    rows = session.execute(
+        select(AnalysisRun.level_key, AnalysisRun.algorithm, AnalysisRun.sufficient,
+               AnalysisRun.n_cards, AnalysisRun.insufficient_reason,
+               AnalysisRun.grid_point_at)
+        .join(subq, (AnalysisRun.level_key == subq.c.level_key)
+              & (AnalysisRun.algorithm == subq.c.algorithm)
+              & (AnalysisRun.grid_point_at == subq.c.last_point))
+        .where(AnalysisRun.category == category, AnalysisRun.geo == geo,
+               AnalysisRun.marketplace == marketplace, AnalysisRun.level == level)
+        .order_by(AnalysisRun.level_key, AnalysisRun.algorithm)
+    ).all()
+
+    return [{"level_key": k, "algorithm": a, "sufficient": s, "n_cards": n,
+             "insufficient_reason": r, "grid_point_at": g}
+            for k, a, s, n, r, g in rows]
+
+
+def run_events(session: Session, run: AnalysisRun) -> pd.DataFrame:
+    rows = session.scalars(
+        select(AnalysisEvent).where(AnalysisEvent.run_id == run.id)
+        .order_by(AnalysisEvent.start_at)).all()
+    if not rows:
+        return pd.DataFrame(columns=["direction", "start_at", "end_at", "peak_at"])
+    return pd.DataFrame([{
+        "direction": e.direction, "start_at": e.start_at, "end_at": e.end_at,
+        "peak_at": e.peak_at, "duration_days": e.duration_days, "is_open": e.is_open,
+        "participation_pct": e.participation_pct,
+        "participation_ci_low": e.participation_ci_low,
+        "participation_ci_high": e.participation_ci_high,
+        "magnitude_mean_log": e.magnitude_mean_log,
+        "magnitude_peak_log": e.magnitude_peak_log,
+        "magnitude_ci_low_log": e.magnitude_ci_low_log,
+        "magnitude_ci_high_log": e.magnitude_ci_high_log,
+        "speed_mean_log": e.speed_mean_log, "speed_peak_log": e.speed_peak_log,
+        "speed_ci_low_log": e.speed_ci_low_log, "speed_ci_high_log": e.speed_ci_high_log,
+    } for e in rows])
+
+
+def run_curve(session: Session, run: AnalysisRun) -> pd.DataFrame:
+    rows = session.scalars(
+        select(MarketCurvePoint).where(MarketCurvePoint.run_id == run.id)
+        .order_by(MarketCurvePoint.parsed_at)).all()
+    if not rows:
+        return pd.DataFrame(columns=["parsed_at", "level_value"])
+    return pd.DataFrame([{"parsed_at": p.parsed_at, "level_value": p.level_value}
+                         for p in rows])

@@ -98,5 +98,31 @@ def run_all(grid_point_at: datetime | None = None) -> int:
                                      result.level, result.level_key, result.algorithm)
             session.commit()
 
+            if policies.DEBUG_CHARTS:
+                _save_debug_charts(results, row, grid_point_at)
+
     logger.info("РАСЧЁТ ЗАВЕРШЁН: снепшотов сохранено=%d", saved)
     return saved
+
+
+def _save_debug_charts(results, set_row, grid_point_at: datetime) -> None:
+    """Складывает PNG по всем снепшотам сета в отладочный каталог."""
+    from app.viz.charts import render_chart, save_debug_chart
+
+    saved = 0
+    for result in results:
+        if not result.sufficient:
+            continue
+        try:
+            subtitle = (f"{result.algorithm}, карточек {result.n_cards}, "
+                        f"событий {len(result.events)}")
+            png = render_chart(result.curve, result.events,
+                               title=result.level_key, subtitle=subtitle)
+            save_debug_chart(png, category=result.category, level=result.level,
+                             level_key=result.level_key, algorithm=result.algorithm,
+                             grid_point_at=grid_point_at)
+            saved += 1
+        except Exception:
+            logger.exception("Не удалось построить график %s/%s",
+                             result.level_key, result.algorithm)
+    logger.info("Отладочных графиков сохранено: %d (%s)", saved, policies.DEBUG_DIR)
