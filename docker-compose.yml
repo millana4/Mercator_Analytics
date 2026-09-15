@@ -1,0 +1,45 @@
+services:
+  analytics-service:
+    build: .
+    container_name: an-app
+    env_file:
+      - .env
+    ports:
+      - "8020:8020"
+    depends_on:
+      an-postgres:
+        condition: service_healthy
+    networks:
+      - default
+      - core
+    volumes:
+      - ${MOCK_DATA_DIR_HOST:-./data/backups}:/data/backups:ro
+      - ./app:/srv/app
+      - ./logs:/srv/logs
+    restart: unless-stopped
+
+  an-postgres:
+    image: postgres:16
+    container_name: an-postgres
+    environment:
+      POSTGRES_DB: ${ANALYTICS_PG_DB}
+      POSTGRES_USER: ${ANALYTICS_PG_USER}
+      POSTGRES_PASSWORD: ${ANALYTICS_PG_PASSWORD}
+    ports:
+      - "${ANALYTICS_PG_BIND}:5432"
+    volumes:
+      - an-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${ANALYTICS_PG_USER} -d ${ANALYTICS_PG_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  an-pgdata:
+
+networks:
+  core:
+    external: true
+    name: ${CORE_NETWORK}
