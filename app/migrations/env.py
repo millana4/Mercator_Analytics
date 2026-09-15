@@ -5,7 +5,7 @@ from alembic import context
 
 from app.config.settings import get_settings
 from app.db.base import Base
-# import app.db.models  # noqa: F401  - модели появятся на этапе 4
+import app.db.models  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", get_settings().analytics_dsn)

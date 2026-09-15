@@ -17,17 +17,19 @@ ALGORITHMS = (ewma, macd, cusum)
 
 @dataclass
 class LevelResult:
-    """Результат одного среза: уровень + ключ + алгоритм."""
+    """Результат одного снепшота: уровень + ключ + алгоритм."""
     set_id: str
     category: str
     level: str                      # category | subcategory | item
     level_key: str                  # название среза
     algorithm: str
-    n_cards: int
-    total_quota: int
-    deficit_share: float
-    scale_factor: float
-    events: pd.DataFrame
+    n_cards: int = 0
+    total_quota: int = 0
+    deficit_share: float = 0.0
+    scale_factor: float = 1.0
+    sufficient: bool = True
+    insufficient_reason: str | None = None
+    events: pd.DataFrame = field(repr=False, default_factory=pd.DataFrame)
     curve: pd.DataFrame = field(repr=False, default_factory=pd.DataFrame)
     warning: str | None = None
     computed_at: datetime = field(default_factory=datetime.now)
@@ -93,6 +95,11 @@ def run_category(assignment: Assignment, *, set_id: str, category: str,
         if not sel.sufficient:
             logger.warning("[category/%s] %s: недостаточно данных - %s",
                            category, module.ALGORITHM, sel.insufficient_reason)
+            results.append(LevelResult(
+                set_id=set_id, category=category, level="category", level_key=category,
+                algorithm=module.ALGORITHM, total_quota=sel.total_quota,
+                sufficient=False, insufficient_reason=sel.insufficient_reason,
+                warning=sel.warning_text(category)))
             continue
 
         _log_selection("category", category, module.ALGORITHM, sel)
@@ -121,6 +128,11 @@ def run_subcategories(assignment: Assignment, *, set_id: str, category: str,
             if not sel.sufficient:
                 logger.warning("[subcategory/%s] %s: недостаточно данных - %s",
                                label, module.ALGORITHM, sel.insufficient_reason)
+                results.append(LevelResult(
+                    set_id=set_id, category=category, level="subcategory", level_key=label,
+                    algorithm=module.ALGORITHM, total_quota=sel.total_quota,
+                    sufficient=False, insufficient_reason=sel.insufficient_reason,
+                    warning=sel.warning_text(label)))
                 continue
 
             _log_selection("subcategory", label, module.ALGORITHM, sel)
@@ -154,5 +166,5 @@ def run_for_set(connector, assignment: Assignment, set_row: pd.Series) -> list[L
     results += run_subcategories(assignment, set_id=set_id, category=category,
                                  strata=strata, cards=cards, panel=panel)
 
-    logger.info("Расчёт сета завершён: срезов посчитано=%d", len(results))
+    logger.info("Расчёт сета завершён: снепшотов посчитано=%d", len(results))
     return results

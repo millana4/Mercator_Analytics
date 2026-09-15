@@ -163,7 +163,7 @@ def format_events(events: pd.DataFrame) -> pd.DataFrame:
         rows.append({
             "Алгоритм": e["algorithm"],
             "Тип события": DIRECTION_TITLES[e["direction"]],
-            "Срез": e["label"],
+            "Снепшот": e["label"],
             "N карточек": e["n_cards"],
             "Начало": e["start_at"],
             "Конец": e["end_at"],

@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     core_ch_user: str
     core_ch_password: str
 
+    scheduler_enabled: bool = True
+
     @property
     def analytics_dsn(self) -> str:
         return (f"postgresql+psycopg://{self.analytics_pg_user}:{self.analytics_pg_password}"
