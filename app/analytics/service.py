@@ -59,9 +59,16 @@ LEVEL_COLUMNS = {"EWMA": "level_smooth_2", "MACD": "ema_fast", "CUSUM": "level_s
 
 
 def _run_one(module, df: pd.DataFrame, *, set_id: str, category: str, level: str,
-             level_key: str, sel: Selection) -> LevelResult:
+             level_key: str, sel: Selection, cards: pd.DataFrame) -> LevelResult:
     events, prepared = module.run(df.copy(), label=level_key)
     n_cards = prepared["sku"].nunique()
+
+    if len(events):
+        events = events.copy()
+        events["participants"] = events.apply(
+            lambda e: common.find_participants(
+                prepared, e["direction"], e["start_at"], e["end_at"], cards),
+            axis=1)
 
     logger.info("[%s/%s] %s: событий=%d, карточек в расчёте=%d",
                 level, level_key, module.ALGORITHM, len(events), n_cards)
@@ -105,7 +112,8 @@ def run_category(assignment: Assignment, *, set_id: str, category: str,
         _log_selection("category", category, module.ALGORITHM, sel)
         df = common.build_analysis_panel(panel, cards, strata, sel.card_ids)
         results.append(_run_one(module, df, set_id=set_id, category=category,
-                                level="category", level_key=category, sel=sel))
+                                level="category", level_key=category, sel=sel,
+                                cards=cards))
     return results
 
 
@@ -138,7 +146,8 @@ def run_subcategories(assignment: Assignment, *, set_id: str, category: str,
             _log_selection("subcategory", label, module.ALGORITHM, sel)
             df = common.build_analysis_panel(panel, cards, strata, sel.card_ids)
             results.append(_run_one(module, df, set_id=set_id, category=category,
-                                    level="subcategory", level_key=label, sel=sel))
+                                    level="subcategory", level_key=label, sel=sel,
+                                    cards=cards))
     return results
 
 # ---------- 3. Весь сет целиком ----------

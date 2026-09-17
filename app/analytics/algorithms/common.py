@@ -181,3 +181,16 @@ def format_events(events: pd.DataFrame) -> pd.DataFrame:
                                                  to_pct=True, digits=2),
         })
     return pd.DataFrame(rows)
+
+
+# ---------- 6. Участники события: карточки с флагом внутри окна ----------
+def find_participants(df: pd.DataFrame, direction: str, start_at, end_at,
+                      cards: pd.DataFrame) -> list[dict]:
+    """Карточки, у которых флаг направления был True хотя бы в одной точке
+    внутри окна события [start_at, end_at]. card_id/name/url берутся из cards,
+    потому что в prepared их нет - build_analysis_panel их не подмердживает."""
+    flag_col = f"{direction}_flag"
+    window = df[(df["parsed_at"] >= start_at) & (df["parsed_at"] <= end_at)]
+    skus = window.loc[window[flag_col], "sku"].unique()
+    matched = cards[cards["sku"].isin(skus)][["card_id", "sku", "name", "url"]]
+    return matched.drop_duplicates("sku").to_dict("records")

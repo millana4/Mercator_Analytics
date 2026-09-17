@@ -9,7 +9,7 @@ import pandas as pd
 from sqlalchemy import delete, select, func
 from sqlalchemy.orm import Session
 
-from app.db.models import AnalysisEvent, AnalysisRun, MarketCurvePoint
+from app.db.models import AnalysisEvent, AnalysisRun, MarketCurvePoint, AnalysisEventParticipant
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +71,10 @@ def save_run(session: Session, result, *, marketplace: str, geo: str,
 
     last_point = curve["parsed_at"].max() if len(curve) else None
     for _, e in result.events.iterrows():
-        run.events.append(AnalysisEvent(
+        event = AnalysisEvent(
             direction=e["direction"],
             start_at=e["start_at"], end_at=e["end_at"], peak_at=e["peak_at"],
             duration_days=float(e["duration_days"]),
-            # блок, упирающийся в последнюю точку данных, мог не завершиться
             is_open=bool(last_point is not None and e["end_at"] >= last_point),
             participation_pct=float(e["participation_pct"]),
             participation_ci_low=_f(e["participation_ci_low"]),
@@ -88,7 +87,13 @@ def save_run(session: Session, result, *, marketplace: str, geo: str,
             speed_peak_log=_f(e["speed_peak_log"]),
             speed_ci_low_log=_f(e["speed_ci_low_log"]),
             speed_ci_high_log=_f(e["speed_ci_high_log"]),
-        ))
+        )
+        for p in e.get("participants", []) or []:
+            event.participants.append(AnalysisEventParticipant(
+                card_id=UUID(str(p["card_id"])), sku=int(p["sku"]),
+                name=p["name"], url=p["url"],
+            ))
+        run.events.append(event)
 
     for _, p in curve.iterrows():
         run.curve_points.append(MarketCurvePoint(
@@ -178,3 +183,13 @@ def run_curve(session: Session, run: AnalysisRun) -> pd.DataFrame:
         return pd.DataFrame(columns=["parsed_at", "level_value"])
     return pd.DataFrame([{"parsed_at": p.parsed_at, "level_value": p.level_value}
                          for p in rows])
+
+
+def list_event_participants(session: Session, event_id: str) -> list[dict]:
+    rows = session.execute(
+        select(AnalysisEventParticipant)
+        .where(AnalysisEventParticipant.event_id == UUID(str(event_id)))
+        .order_by(AnalysisEventParticipant.name)
+    ).scalars().all()
+    return [{"card_id": str(r.card_id), "sku": r.sku, "name": r.name, "url": r.url}
+            for r in rows]

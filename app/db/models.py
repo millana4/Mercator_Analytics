@@ -77,6 +77,9 @@ class AnalysisEvent(Base):
     participation_ci_low: Mapped[float | None] = mapped_column(Float)
     participation_ci_high: Mapped[float | None] = mapped_column(Float)
 
+    participants: Mapped[list["AnalysisEventParticipant"]] = relationship(
+        back_populates="event", cascade="all, delete-orphan")
+
     magnitude_mean_log: Mapped[float | None] = mapped_column(Float)
     magnitude_peak_log: Mapped[float | None] = mapped_column(Float)
     magnitude_ci_low_log: Mapped[float | None] = mapped_column(Float)
@@ -101,3 +104,23 @@ class MarketCurvePoint(Base):
     level_value: Mapped[float | None] = mapped_column(Float)   # log-уровень
 
     run: Mapped[AnalysisRun] = relationship(back_populates="curve_points")
+
+
+class AnalysisEventParticipant(Base):
+    """Карточка, участвовавшая в конкретном событии - для кнопки
+    "Посмотреть участников" на фронте."""
+    __tablename__ = "analysis_event_participant"
+
+    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+    event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("analysis_event.id", ondelete="CASCADE"), index=True)
+    card_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))
+    sku: Mapped[int] = mapped_column(BigInteger)
+    name: Mapped[str] = mapped_column(String(512))
+    url: Mapped[str] = mapped_column(String(1024))
+
+    event: Mapped["AnalysisEvent"] = relationship(back_populates="participants")
+
+    __table_args__ = (
+        UniqueConstraint("event_id", "card_id", name="uq_event_participant"),
+    )

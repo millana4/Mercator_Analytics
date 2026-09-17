@@ -102,3 +102,9 @@ def _pct(value) -> float | None:
 
 def _log_pct(value) -> float | None:
     return None if value is None else log_to_pct(value)
+
+
+@router.get("/events/{event_id}/participants")
+def event_participants(event_id: str, session: Session = Depends(get_session)) -> list[dict]:
+    """Карточки, участвовавшие в конкретном событии."""
+    return repo.list_event_participants(session, event_id)
