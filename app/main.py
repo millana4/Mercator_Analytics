@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health, analytics, auth, subscriptions
+from app.api import health, analytics, auth, subscriptions, cards
 from app.config.logging_setup import setup_logging
 from app.config.settings import get_settings
 from app.scheduler import shutdown_scheduler, start_scheduler
@@ -26,3 +26,4 @@ app.include_router(health.router)
 app.include_router(auth.router)
 app.include_router(subscriptions.router)
 app.include_router(analytics.router)
+app.include_router(cards.router)
