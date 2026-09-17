@@ -35,6 +35,7 @@ CARDS: dict[str, str] = {
     "stratum_id": "string",
     "sku": "Int64",
     "name": "string",
+    "url": "string",
     "collection": "string",
     "status": "string",
     "created_at": "datetime64[ns]",

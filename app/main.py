@@ -2,10 +2,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health, analytics
+from app.api import health, analytics, auth, subscriptions
 from app.config.logging_setup import setup_logging
 from app.config.settings import get_settings
 from app.scheduler import shutdown_scheduler, start_scheduler
+from app.users.seed import seed_test_user
 
 settings = get_settings()
 setup_logging(settings.log_level)
@@ -13,6 +14,7 @@ setup_logging(settings.log_level)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    seed_test_user()
     if settings.scheduler_enabled:
         start_scheduler()
     yield
@@ -21,4 +23,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Mercator Analytics", version="0.1.0", lifespan=lifespan)
 app.include_router(health.router)
+app.include_router(auth.router)
+app.include_router(subscriptions.router)
 app.include_router(analytics.router)

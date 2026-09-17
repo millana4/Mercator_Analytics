@@ -33,6 +33,10 @@ class Settings(BaseSettings):
 
     scheduler_enabled: bool = True
 
+    jwt_secret_key: str
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 1440
+
     @property
     def analytics_dsn(self) -> str:
         return (f"postgresql+psycopg://{self.analytics_pg_user}:{self.analytics_pg_password}"
