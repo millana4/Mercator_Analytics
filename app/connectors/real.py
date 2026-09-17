@@ -35,7 +35,7 @@ WHERE sc.set_id = :set_id
 """
 
 SQL_CARDS = """
-SELECT c.id AS card_id, c.stratum_id, c.sku, c.name, c.collection, c.status,
+SELECT c.id AS card_id, c.stratum_id, c.sku, c.name, c.url, c.collection, c.status,
        c.created_at, c.dropped_at, c.out_of_stock_since, c.last_measured_at
 FROM card c
 JOIN stratum st ON st.id = c.stratum_id
