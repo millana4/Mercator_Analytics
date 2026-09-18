@@ -59,6 +59,7 @@ def snapshot(category: str, geo: str, marketplace: str, level_key: str,
     events_out = []
     for _, e in events.iterrows():
         events_out.append({
+            "id": e["id"],
             "direction": e["direction"],
             "start_at": e["start_at"], "end_at": e["end_at"], "peak_at": e["peak_at"],
             "duration_days": e["duration_days"], "is_open": bool(e["is_open"]),

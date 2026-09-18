@@ -159,8 +159,9 @@ def run_events(session: Session, run: AnalysisRun) -> pd.DataFrame:
         select(AnalysisEvent).where(AnalysisEvent.run_id == run.id)
         .order_by(AnalysisEvent.start_at)).all()
     if not rows:
-        return pd.DataFrame(columns=["direction", "start_at", "end_at", "peak_at"])
+        return pd.DataFrame(columns=["id", "direction", "start_at", "end_at", "peak_at"])
     return pd.DataFrame([{
+        "id": str(e.id),
         "direction": e.direction, "start_at": e.start_at, "end_at": e.end_at,
         "peak_at": e.peak_at, "duration_days": e.duration_days, "is_open": e.is_open,
         "participation_pct": e.participation_pct,
