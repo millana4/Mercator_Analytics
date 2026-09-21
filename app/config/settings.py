@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     core_ch_user: str
     core_ch_password: str
 
+    cors_origins: str = "http://localhost:5173"
+
     scheduler_enabled: bool = True
 
     jwt_secret_key: str
