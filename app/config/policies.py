@@ -1,6 +1,8 @@
 # ---------- Политики расчёта: сетка регуляризации и расписание ----------
 from datetime import datetime, time, timedelta
 
+from app.config.settings import get_settings
+
 # Временные точки суток, к которым приводятся замеры (час, минута).
 # Определяются возможностями парсеров: сейчас полный обход укладывается в 2 раза в сутки.
 GRID_TIMES: tuple[tuple[int, int], ...] = ((0, 37), (12, 37))
@@ -34,7 +36,7 @@ EXCLUDED_ITEMS: tuple[str, ...] = ("Термобельё",)
 
 # ---------- Отладочные графики ----------
 # Сохранять ли PNG на диск при каждом расчёте. На сервере выключать.
-DEBUG_CHARTS: bool = True
+DEBUG_CHARTS = get_settings().debug_charts
 DEBUG_DIR: str = "/srv/debug"
 
 
