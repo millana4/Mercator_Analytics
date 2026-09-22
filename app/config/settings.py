@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
 
     scheduler_enabled: bool = True
+    debug_charts: bool = False
 
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
