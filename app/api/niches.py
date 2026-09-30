@@ -40,10 +40,6 @@ class NicheOut(BaseModel):
     core_error: str | None
 
 
-class NicheCreatedOut(NicheOut):
-    message: str
-
-
 class LimitsOut(BaseModel):
     used: int
     limit: int
@@ -102,13 +98,13 @@ def dashboard_niches(category: str, marketplace: str, geo: str,
 @router.post("", status_code=status.HTTP_201_CREATED)
 def create_niche(body: NicheIn,
                  user: User = Depends(get_current_user),
-                 session: Session = Depends(get_session)) -> NicheCreatedOut:
+                 session: Session = Depends(get_session)) -> NicheOut:
     try:
-        niche, message = service.create(session, user, body.category, body.marketplace,
-                                        body.geo, body.description, body.reference_url)
+        niche = service.create(session, user, body.category, body.marketplace,
+                               body.geo, body.description, body.reference_url)
     except NicheError as e:
         _raise(e)
-    return NicheCreatedOut(**_out(niche, user).model_dump(), message=message)
+    return _out(niche, user)
 
 
 @router.get("/{niche_id}")

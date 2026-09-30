@@ -19,10 +19,6 @@ from app.db import repository as repo
 
 log = logging.getLogger(__name__)
 
-WAIT_WARNING = ("Сбор данных по нише займёт время: аналитика появится после подбора "
-                "карточек и накопления замеров.")
-PENDING_NOTE = " Ядро сейчас недоступно — задание сохранено и будет отправлено автоматически."
-
 
 class NicheError(Exception):
     """Ошибка для пользователя: HTTP-код и текст."""
@@ -85,8 +81,9 @@ def get_visible(session: Session, user: User, niche_id: UUID) -> Niche:
 
 # ---------- 3. Создание ----------
 def create(session: Session, user: User, category: str, marketplace: str, geo: str,
-           description: str | None, reference_url: str | None) -> tuple[Niche, str]:
-    """Проверить и сохранить нишу, отправить в ядро. Возвращает нишу и сообщение."""
+           description: str | None, reference_url: str | None) -> Niche:
+    """Проверить и сохранить нишу, отправить в ядро. Если ядро недоступно,
+    ниша остаётся pending и досылается планировщиком."""
     description = (description or "").strip() or None
     reference_url = (reference_url or "").strip() or None
     if description is None and reference_url is None:
@@ -136,13 +133,13 @@ def create(session: Session, user: User, category: str, marketplace: str, geo: s
         niche.submit_error = str(e)[:500]
         session.commit()
         log.warning("Ниша %s сохранена, ядро недоступно — будет дослана: %s", niche.id, e)
-        return niche, WAIT_WARNING + PENDING_NOTE
+        return niche
 
     niche.status = NicheStatus.SUBMITTED
     niche.submit_error = None
     session.commit()
     log.info("Ниша %s создана пользователем %s и отправлена в ядро", niche.id, user.username)
-    return niche, WAIT_WARNING
+    return niche
 
 
 # ---------- 4. Удаление ----------

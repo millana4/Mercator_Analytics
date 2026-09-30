@@ -85,7 +85,7 @@ def test_create_and_read(client, auth_headers, core_client):
     assert body["status"] == "submitted"
     assert body["is_own"] is True
     assert body["core_status"] is None and body["search_query"] is None
-    assert body["message"].startswith("Сбор данных по нише займёт время")
+    assert "message" not in body
     assert core_client.created == [UUID(body["id"])]
 
     listed = client.get("/api/v1/niches", params=KIDS, headers=auth_headers).json()

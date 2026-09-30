@@ -99,7 +99,7 @@ def test_limit_internal_user(db_session, core_client, monkeypatch):
     monkeypatch.setattr(policies, "FREE_NICHES_INTERNAL", 2)
     user = _user(db_session, is_internal=True)
     for _ in range(2):
-        niche, _message = service.create(db_session, user, *KIDS, "платье", None)
+        niche = service.create(db_session, user, *KIDS, "платье", None)
         assert niche.status == NicheStatus.SUBMITTED
     with pytest.raises(NicheError) as e:
         service.create(db_session, user, *KIDS, "ещё одно платье", None)
@@ -122,7 +122,7 @@ def test_limit_external_user(db_session, core_client, monkeypatch):
 def test_delete_frees_slot(db_session, core_client, monkeypatch):
     monkeypatch.setattr(policies, "FREE_NICHES_EXTERNAL", 1)
     user = _user(db_session, is_internal=False)
-    niche, _message = service.create(db_session, user, *KIDS, "платье", None)
+    niche = service.create(db_session, user, *KIDS, "платье", None)
     service.delete(db_session, user, niche.id)
     assert core_client.deleted == [niche.id]
     service.create(db_session, user, *KIDS, "новое платье", None)   # место освободилось
