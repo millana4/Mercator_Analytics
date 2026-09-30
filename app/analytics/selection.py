@@ -233,3 +233,20 @@ def select_for_subcategory(subcategory_key: tuple[str, int, str], strata: pd.Dat
                          insufficient_reason=(f"пригодных карточек {len(taken)} при минимуме "
                                               f"{min_cards} (ряд от {min_points} точек)"))
     return Selection(card_ids=taken, total_quota=min_cards)
+
+
+# ---------- 6. Уровень НИШИ: ближайшие к референсу ----------
+def select_for_niche(cards: pd.DataFrame, panel: pd.DataFrame, *, target_count: int,
+                     min_points: int, min_cards: int) -> Selection:
+    """cards - состав ниши (схема NICHE_CARDS). Пригодные карточки сортируются
+    по близости к референсу, при равной близости - по длине ряда; берём не больше
+    target_count. Ядро собирает plan_count с запасом на ротацию, в анализ идут ближайшие."""
+    pool = eligible_cards(cards, panel, min_points)
+    pool = pool.sort_values("similarity", ascending=False, na_position="last", kind="stable")
+    taken = pool.head(target_count)["card_id"].tolist()
+
+    if len(taken) < min_cards:
+        return Selection(card_ids=[], total_quota=target_count, sufficient=False,
+                         insufficient_reason=(f"пригодных карточек {len(taken)} при минимуме "
+                                              f"{min_cards} (ряд от {min_points} точек)"))
+    return Selection(card_ids=taken, total_quota=target_count)

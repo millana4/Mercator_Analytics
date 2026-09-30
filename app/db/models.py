@@ -2,13 +2,14 @@
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from sqlalchemy import (BigInteger, Boolean, DateTime, Float, ForeignKey, Index,
+from sqlalchemy import (BigInteger, Boolean, DateTime, Float, ForeignKey,
                         Integer, String, Text, UniqueConstraint, func)
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 import app.users.models  # noqa: F401
+import app.niches.models  # noqa: F401
 
 
 class AnalysisRun(Base):
@@ -53,7 +54,6 @@ class AnalysisRun(Base):
     __table_args__ = (
         UniqueConstraint("source_set_id", "level", "level_key", "algorithm", "grid_point_at",
                          name="uq_run_snapshot_point"),
-        Index("ix_run_lookup", "category", "geo", "marketplace", "level", "algorithm"),
     )
 
 
@@ -63,8 +63,7 @@ class AnalysisEvent(Base):
     __tablename__ = "analysis_event"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    run_id: Mapped[UUID] = mapped_column(
-        ForeignKey("analysis_run.id", ondelete="CASCADE"), index=True)
+    run_id: Mapped[UUID] = mapped_column(ForeignKey("analysis_run.id", ondelete="CASCADE"))
 
     direction: Mapped[str] = mapped_column(String(8))     # down | up
     start_at: Mapped[datetime] = mapped_column(DateTime)
@@ -98,8 +97,7 @@ class MarketCurvePoint(Base):
     __tablename__ = "market_curve_point"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
-    run_id: Mapped[UUID] = mapped_column(
-        ForeignKey("analysis_run.id", ondelete="CASCADE"), index=True)
+    run_id: Mapped[UUID] = mapped_column(ForeignKey("analysis_run.id", ondelete="CASCADE"))
     parsed_at: Mapped[datetime] = mapped_column(DateTime)
     level_value: Mapped[float | None] = mapped_column(Float)   # log-уровень
 
@@ -112,8 +110,7 @@ class AnalysisEventParticipant(Base):
     __tablename__ = "analysis_event_participant"
 
     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
-    event_id: Mapped[UUID] = mapped_column(
-        ForeignKey("analysis_event.id", ondelete="CASCADE"), index=True)
+    event_id: Mapped[UUID] = mapped_column(ForeignKey("analysis_event.id", ondelete="CASCADE"))
     card_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))
     sku: Mapped[int] = mapped_column(BigInteger)
     name: Mapped[str] = mapped_column(String(512))

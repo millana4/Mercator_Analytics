@@ -1,11 +1,14 @@
-# ---------- Планировщик: запуск расчёта после каждой точки сетки ----------
+# ---------- Планировщик: расчёт после каждой точки сетки, досылка ниш в ядро ----------
 import logging
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from app.analytics.runner import run_all
-from app.config.policies import analytics_run_times, cron_expression
+from app.config.policies import (NICHE_RESEND_INTERVAL_SECONDS, analytics_run_times,
+                                 cron_expression)
+from app.niches.service import resend_to_core
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +28,17 @@ def start_scheduler() -> BackgroundScheduler:
         max_instances=1,           # расчёт не должен накладываться сам на себя
         misfire_grace_time=3600,   # пропущенный запуск отработает в течение часа
     )
+    scheduler.add_job(
+        resend_to_core, IntervalTrigger(seconds=NICHE_RESEND_INTERVAL_SECONDS),
+        id="niche_resend", replace_existing=True,
+        max_instances=1,           # досылка не накладывается сама на себя
+        coalesce=True,             # пропущенные запуски схлопываются в один
+    )
     scheduler.start()
 
     times = ", ".join(t.strftime("%H:%M") for t in analytics_run_times())
-    logger.info("Планировщик запущен, расчёт в %s", times)
+    logger.info("Планировщик запущен, расчёт в %s, досылка ниш раз в %s с",
+                times, NICHE_RESEND_INTERVAL_SECONDS)
     _scheduler = scheduler
     return scheduler
 

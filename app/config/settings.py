@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     core_ch_db: str
     core_ch_user: str
     core_ch_password: str
+    core_api_url: str = "http://tm-app:8080"
 
     cors_origins: str = "http://localhost:5173"
 

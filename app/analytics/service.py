@@ -6,9 +6,11 @@ from datetime import datetime
 import pandas as pd
 
 from app.analytics.algorithms import common, cusum, ewma, macd
-from app.analytics.selection import Selection, select_for_category, select_for_subcategory
+from app.analytics.selection import (Selection, select_for_category, select_for_niche,
+                                     select_for_subcategory)
 from app.assignments.models import Assignment
 from app.config import policies
+from app.connectors import schema
 
 logger = logging.getLogger(__name__)
 
@@ -18,10 +20,10 @@ ALGORITHMS = (ewma, macd, cusum)
 @dataclass
 class LevelResult:
     """Результат одного снепшота: уровень + ключ + алгоритм."""
-    set_id: str
+    set_id: str                     # id сета; у уровня niche - id ниши
     category: str
-    level: str                      # category | subcategory | item
-    level_key: str                  # название среза
+    level: str                      # category | subcategory | item | niche
+    level_key: str                  # название среза; у уровня niche - id ниши
     algorithm: str
     n_cards: int = 0
     total_quota: int = 0
@@ -176,4 +178,66 @@ def run_for_set(connector, assignment: Assignment, set_row: pd.Series) -> list[L
                                  strata=strata, cards=cards, panel=panel)
 
     logger.info("Расчёт сета завершён: снепшотов посчитано=%d", len(results))
+    return results
+
+
+# ---------- 4. Товарная ниша ----------
+def run_for_niche(connector, niche_row: pd.Series) -> list[LevelResult]:
+    """Ниша - отдельный срез: состав из ядра (niche_card), отбор по близости
+    к референсу, те же алгоритмы, что у категорий. set_id и level_key = id ниши."""
+    niche_id, category = niche_row["niche_id"], niche_row["category"]
+    query = niche_row["search_query"]
+    label = f"ниши «{query}»" if not pd.isna(query) and query else "ниши"
+    target_count = int(niche_row["target_count"])
+
+    logger.info("=" * 70)
+    logger.info("Расчёт ниши: %s / %s / %s, запрос «%s», статус в ядре %s (niche_id=%s)",
+                niche_row["marketplace"], category, niche_row["geo"],
+                query, niche_row["status"], niche_id)
+
+    from app.etl.regularize import build_regular_panel
+
+    cards = connector.get_niche_cards(niche_id)
+    skus = cards.loc[cards["status"] == "active", "sku"].dropna().astype(int).tolist()
+    logger.info("Карточек в нише=%d, active=%d", len(cards), len(skus))
+
+    measurements = (connector.get_measurements(skus) if skus
+                    else schema.empty(schema.MEASUREMENTS))
+    panel = build_regular_panel(measurements)
+    if not panel.empty:
+        logger.info("Панель: точек сетки=%d, период %s - %s, доля снятых замеров=%.1f%%",
+                    panel["parsed_at"].nunique(), panel["parsed_at"].min(),
+                    panel["parsed_at"].max(), panel["is_observed"].mean() * 100)
+
+    # Признаки страты уровню ниши не нужны, а у карточек, созданных для ниши,
+    # страты нет вовсе. build_analysis_panel оставит эти колонки пустыми.
+    no_strata = schema.empty(schema.STRATA)
+
+    results = []
+    for module in ALGORITHMS:
+        p = module.PARAMS
+        if panel.empty:
+            sel = Selection(card_ids=[], total_quota=target_count, sufficient=False,
+                            insufficient_reason="нет замеров по активным карточкам ниши")
+        else:
+            sel = select_for_niche(cards, panel, target_count=target_count,
+                                   min_points=p.min_points,
+                                   min_cards=policies.MIN_CARDS_NICHE)
+        if not sel.sufficient:
+            logger.warning("[niche/%s] %s: недостаточно данных - %s",
+                           niche_id, module.ALGORITHM, sel.insufficient_reason)
+            results.append(LevelResult(
+                set_id=niche_id, category=category, level="niche", level_key=niche_id,
+                algorithm=module.ALGORITHM, total_quota=sel.total_quota,
+                sufficient=False, insufficient_reason=sel.insufficient_reason,
+                warning=sel.warning_text(label)))
+            continue
+
+        _log_selection("niche", niche_id, module.ALGORITHM, sel)
+        df = common.build_analysis_panel(panel, cards, no_strata, sel.card_ids)
+        results.append(_run_one(module, df, set_id=niche_id, category=category,
+                                level="niche", level_key=niche_id, sel=sel,
+                                cards=cards))
+
+    logger.info("Расчёт ниши завершён: снепшотов посчитано=%d", len(results))
     return results

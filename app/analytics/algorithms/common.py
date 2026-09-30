@@ -12,8 +12,12 @@ def log_to_pct(log_x):
 # ---------- 1. Плоская панель с признаками среза ----------
 def build_analysis_panel(panel: pd.DataFrame, cards: pd.DataFrame,
                          strata: pd.DataFrame, card_ids: list[str]) -> pd.DataFrame:
+    # how="left": у карточек, созданных для ниши, страты нет - признаки среза остаются
+    # пустыми, карточка не теряется. У категорий и подкатегорий страта каждой карточки
+    # есть в strata, для них результат прежний.
     dims = cards[["card_id", "sku", "stratum_id"]].merge(
-        strata[["stratum_id", "gender", "layer", "item", "subcategory"]], on="stratum_id")
+        strata[["stratum_id", "gender", "layer", "item", "subcategory"]],
+        on="stratum_id", how="left")
     df = panel[panel["card_id"].isin(card_ids)].merge(dims, on=["card_id", "sku"])
     # цена 0 недопустима: ln(0) = -inf. Приводим к обычному float64,
     # иначе pandas ругается на masked-массив. Ноль трактуем как отсутствие цены.

@@ -23,3 +23,11 @@ class DataConnector(Protocol):
         date_from: datetime | None = None,
         date_to: datetime | None = None,
     ) -> pd.DataFrame: ...
+
+    def get_niches(self) -> pd.DataFrame:
+        """Ниши ядра во всех статусах. niche_id = external_id ядра = id ниши аналитики."""
+        ...
+
+    def get_niche_cards(self, niche_id: str) -> pd.DataFrame:
+        """Текущий состав ниши (niche_card) с близостью к референсу."""
+        ...

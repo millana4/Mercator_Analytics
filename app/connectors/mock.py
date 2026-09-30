@@ -32,6 +32,11 @@ def parse_copy_block(sql_text: str, table: str) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=cols)
 
 
+def has_copy_block(sql_text: str, table: str) -> bool:
+    """Есть ли в дампе блок COPY таблицы. Пустая таблица блок тоже даёт."""
+    return re.search(rf"^COPY public\.{table} \(", sql_text, re.MULTILINE) is not None
+
+
 class MockConnector:
     """Читает выгруженные дампы. Схема на выходе - та же, что у RealConnector."""
 
@@ -96,3 +101,43 @@ class MockConnector:
         if date_to is not None:
             m = m[m["parsed_at"] < date_to]
         return schema.conform(m, schema.MEASUREMENTS)
+
+    # ---------- 4. Ниши ----------
+    @cached_property
+    def _raw_niches(self) -> dict[str, pd.DataFrame] | None:
+        """Таблицы ниш. None - дамп снят до миграций ниш (V7-V11), таблиц в нём нет."""
+        tables = ("niche", "niche_card", "niche_candidate")
+        if not all(has_copy_block(self._dump, t) for t in tables):
+            return None
+        return {t: parse_copy_block(self._dump, t) for t in tables}
+
+    def get_niches(self) -> pd.DataFrame:
+        raw = self._raw_niches
+        if raw is None:
+            return schema.empty(schema.NICHES)
+        n = raw["niche"].copy()
+        for ref in ("marketplace", "geo", "category"):
+            titles = self._raw[ref].set_index("id")["title"]
+            n[ref] = n[f"{ref}_id"].map(titles)
+        return schema.conform(n.rename(columns={"external_id": "niche_id"}), schema.NICHES)
+
+    def get_niche_cards(self, niche_id: str) -> pd.DataFrame:
+        raw = self._raw_niches
+        if raw is None:
+            return schema.empty(schema.NICHE_CARDS)
+        n = raw["niche"]
+        core_ids = n.loc[n["external_id"] == niche_id, "id"]
+        if core_ids.empty:
+            return schema.empty(schema.NICHE_CARDS)
+        core_id = core_ids.iloc[0]
+
+        members = raw["niche_card"]
+        members = members.loc[members["niche_id"] == core_id, ["card_id", "added_at"]]
+        # у card своя колонка niche_id (ниша-создатель) - к составу ниши она не относится
+        cards = self._raw["card"].rename(columns={"id": "card_id"}).drop(columns=["niche_id"])
+        cand = raw["niche_candidate"]
+        cand = cand.loc[cand["niche_id"] == core_id, ["sku", "similarity"]]
+
+        c = members.merge(cards, on="card_id", how="inner").merge(cand, on="sku", how="left")
+        c["niche_id"] = niche_id
+        return schema.conform(c, schema.NICHE_CARDS)

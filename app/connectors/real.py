@@ -43,6 +43,29 @@ JOIN subcategory sc ON sc.id = st.subcategory_id
 WHERE sc.set_id = :set_id
 """
 
+SQL_NICHES = """
+SELECT n.external_id AS niche_id, m.title AS marketplace, c.title AS category,
+       g.title AS geo, n.status, n.search_query, n.error, n.target_count, n.plan_count
+FROM niche n
+JOIN marketplace m ON m.id = n.marketplace_id
+JOIN category c ON c.id = n.category_id
+JOIN geo g ON g.id = n.geo_id
+"""
+
+# stratum_id::text - у карточек, созданных для ниши, страты нет (NULL);
+# в канон id идут строкой, приведение в SQL делает это явно.
+SQL_NICHE_CARDS = """
+SELECT n.external_id AS niche_id, c.id AS card_id, c.stratum_id::text AS stratum_id,
+       c.sku, c.name, c.url, c.collection, c.status,
+       c.created_at, c.dropped_at, c.out_of_stock_since, c.last_measured_at,
+       nc.added_at, cand.similarity
+FROM niche n
+JOIN niche_card nc ON nc.niche_id = n.id
+JOIN card c ON c.id = nc.card_id
+LEFT JOIN niche_candidate cand ON cand.niche_id = n.id AND cand.sku = c.sku
+WHERE n.external_id = :niche_id
+"""
+
 
 class RealConnector:
     def __init__(self, settings: Settings):
@@ -65,6 +88,13 @@ class RealConnector:
 
     def get_cards(self, set_id: str) -> pd.DataFrame:
         return schema.conform(self._query(SQL_CARDS, set_id=set_id), schema.CARDS)
+
+    def get_niches(self) -> pd.DataFrame:
+        return schema.conform(self._query(SQL_NICHES), schema.NICHES)
+
+    def get_niche_cards(self, niche_id: str) -> pd.DataFrame:
+        return schema.conform(self._query(SQL_NICHE_CARDS, niche_id=niche_id),
+                              schema.NICHE_CARDS)
 
     def get_measurements(self, skus: list[int], date_from: datetime | None = None,
                           date_to: datetime | None = None) -> pd.DataFrame:

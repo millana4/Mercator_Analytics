@@ -58,6 +58,29 @@ MEASUREMENTS: dict[str, str] = {
     "parser_id": "string",
 }
 
+# Ниша: niche_id = niche.external_id ядра = niche.id аналитики.
+# status - статус обработки в ядре (new ... active, failed, deleted).
+NICHES: dict[str, str] = {
+    "niche_id": "string",
+    "marketplace": "string",
+    "category": "string",
+    "geo": "string",
+    "status": "string",
+    "search_query": "string",
+    "error": "string",
+    "target_count": "Int64",
+    "plan_count": "Int64",
+}
+
+# Состав ниши: колонки карточки как в CARDS + принадлежность и близость.
+# stratum_id пуст у карточек, созданных для ниши.
+NICHE_CARDS: dict[str, str] = {
+    "niche_id": "string",
+    **CARDS,
+    "added_at": "datetime64[ns]",     # niche_card.added_at
+    "similarity": "Float64",          # niche_candidate.similarity, пусто если кандидата нет
+}
+
 
 def conform(df: pd.DataFrame, spec: dict[str, str]) -> pd.DataFrame:
     """Приводит датафрейм к канонической схеме: порядок колонок и типы.
@@ -72,6 +95,11 @@ def conform(df: pd.DataFrame, spec: dict[str, str]) -> pd.DataFrame:
         else:
             out[col] = out[col].astype(dtype)
     return out.reset_index(drop=True)
+
+
+def empty(spec: dict[str, str]) -> pd.DataFrame:
+    """Пустой датафрейм канонической схемы (например, в дампе нет таблиц ниш)."""
+    return conform(pd.DataFrame(columns=list(spec)), spec)
 
 # Время в проекте локальное (сетка 00:37/12:37 задана в нём же).
 # Дампы Postgres приходят со смещением +03:00, ClickHouse и CSV - без него.

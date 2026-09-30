@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from app.analytics.service import run_for_set
+from app.analytics.service import run_for_niche, run_for_set
 from app.assignments.models import Assignment
 from app.assignments.readers import read_assignment
 from app.config import policies
@@ -30,6 +30,10 @@ PARAMS_BY_ALGORITHM = {
     macd.ALGORITHM: macd.PARAMS,
     cusum.ALGORITHM: cusum.PARAMS,
 }
+
+# Ниши в этих статусах ядра не считаются: удалённые и остановленные ошибкой.
+# Остальные считаются всегда - недостаток карточек и замеров отсекает гейт.
+NICHE_SKIPPED_STATUSES = ("deleted", "failed")
 
 
 def current_grid_point(now: datetime | None = None) -> datetime:
@@ -62,7 +66,7 @@ def load_assignment(category: str, data_dir: str) -> Assignment | None:
 
 
 def run_all(grid_point_at: datetime | None = None) -> int:
-    """Полный цикл: все сеты, все уровни, все алгоритмы. Результат - в базу.
+    """Полный цикл: все сеты и все ниши, все уровни, все алгоритмы. Результат - в базу.
     Возвращает число сохранённых снепшотов."""
     grid_point_at = grid_point_at or current_grid_point()
     settings = get_settings()
@@ -101,7 +105,45 @@ def run_all(grid_point_at: datetime | None = None) -> int:
             if policies.DEBUG_CHARTS:
                 _save_debug_charts(results, row, grid_point_at)
 
+    saved += _run_niches(connector, grid_point_at)
+
     logger.info("РАСЧЁТ ЗАВЕРШЁН: снепшотов сохранено=%d", saved)
+    return saved
+
+
+def _run_niches(connector, grid_point_at: datetime) -> int:
+    """Все ниши за ту же точку сетки. Возвращает число сохранённых снепшотов."""
+    try:
+        niches = connector.get_niches()
+    except Exception:
+        logger.exception("Не удалось получить ниши из источника - расчёт ниш пропущен")
+        return 0
+    niches = niches[~niches["status"].isin(NICHE_SKIPPED_STATUSES)]
+    logger.info("Ниш к расчёту: %d", len(niches))
+
+    saved = 0
+    for _, row in niches.iterrows():
+        try:
+            results = run_for_niche(connector, row)
+        except Exception:
+            logger.exception("Расчёт ниши %s провалился, продолжаем со следующей",
+                             row["niche_id"])
+            continue
+
+        with SessionLocal() as session:
+            for result in results:
+                try:
+                    save_run(session, result, marketplace=row["marketplace"],
+                             geo=row["geo"], grid_point_at=grid_point_at,
+                             params=PARAMS_BY_ALGORITHM.get(result.algorithm))
+                    saved += 1
+                except Exception:
+                    logger.exception("Не удалось сохранить снепшот %s/%s/%s",
+                                     result.level, result.level_key, result.algorithm)
+            session.commit()
+
+            if policies.DEBUG_CHARTS:
+                _save_debug_charts(results, row, grid_point_at)
     return saved
 
 
