@@ -1,17 +1,21 @@
 # ---------- Товарные ниши: видимость, лимит, создание, удаление ----------
 import logging
 from datetime import datetime
+from functools import lru_cache
 from uuid import UUID
 
+import pandas as pd
 from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session
 
 from app.config import policies
+from app.connectors.factory import get_connector
 from app.core_api.client import CoreRejected, CoreUnavailable, get_core_client
 from app.niches.models import Niche, NicheStatus, UserNiche
 from app.niches.validation import ReferenceUrlError, validate_reference_url
 from app.users.models import User, UserSubscription
 from app.db.session import SessionLocal
+from app.db import repository as repo
 
 log = logging.getLogger(__name__)
 
@@ -169,7 +173,8 @@ def delete(session: Session, user: User, niche_id: UUID) -> None:
 
 # ---------- 5. Досылка в ядро (планировщик) ----------
 def resend_to_core() -> None:
-    """Досылка: pending — задания, deleted с submit_error — удаления."""
+    """Досылка: pending — задания, deleted с submit_error — удаления.
+    После досылки - обновление состояния обработки из ядра (раздел 6)."""
     client = get_core_client()
     with SessionLocal() as session:
         pending = session.scalars(
@@ -204,3 +209,60 @@ def resend_to_core() -> None:
             niche.submit_error = None
             session.commit()
             log.info("Удаление ниши %s дослано в ядро", niche.id)
+
+    # Сбой синхронизации (ядро недоступно) досылку не отменяет
+    try:
+        sync_core_state()
+    except Exception as e:
+        log.warning("Состояние ниш из ядра не обновлено: %s", e)
+
+
+# ---------- 6. Состояние обработки в ядре (планировщик) ----------
+@lru_cache(maxsize=1)
+def _core_connector():
+    """Один коннектор на процесс: задача идёт раз в минуту,
+    новое подключение к базе ядра на каждый запуск не нужно."""
+    return get_connector()
+
+
+def _nullable(value) -> str | None:
+    return None if pd.isna(value) else str(value)
+
+
+def sync_core_state() -> int:
+    """Копирует из ядра статус обработки, поисковый запрос и ошибку в ниши,
+    которые ядро приняло (submitted). Возвращает число изменённых ниш."""
+    core = _core_connector().get_niches()
+    by_id = {row["niche_id"]: row for _, row in core.iterrows()}
+
+    changed = 0
+    with SessionLocal() as session:
+        niches = session.scalars(
+            select(Niche).where(Niche.status == NicheStatus.SUBMITTED)).all()
+        for niche in niches:
+            row = by_id.get(str(niche.id))
+            if row is None:
+                continue
+            state = (_nullable(row["status"]), _nullable(row["search_query"]),
+                     _nullable(row["error"]))
+            if state == (niche.core_status, niche.search_query, niche.core_error):
+                continue
+            niche.core_status, niche.search_query, niche.core_error = state
+            changed += 1
+        session.commit()
+
+    if changed:
+        log.info("Состояние ниш обновлено из ядра: %d", changed)
+    return changed
+
+
+# ---------- 7. Ниши для дашборда ----------
+def dashboard(session: Session, user: User, category: str, marketplace: str,
+              geo: str) -> list[Niche]:
+    """Видимые пользователю ниши связки, у которых в последнем снепшоте хотя бы
+    один алгоритм дал результат. Пока данных недостаточно, ниша не показывается."""
+    niches = list_available(session, user, category, marketplace, geo)
+    rows = repo.list_levels(session, category=category, geo=geo,
+                            marketplace=marketplace, level="niche")
+    ready = {r["level_key"] for r in rows if r["sufficient"]}
+    return [n for n in niches if str(n.id) in ready]

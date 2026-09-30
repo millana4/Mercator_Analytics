@@ -1,10 +1,13 @@
 # ---------- Эндпоинты аналитики ----------
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.analytics.algorithms.common import format_events, log_to_pct
 from app.db import repository as repo
 from app.db.session import get_session
+from app.niches.models import Niche
 from app.viz.charts import render_chart
 
 router = APIRouter(prefix="/api/v1", tags=["analytics"])
@@ -16,6 +19,8 @@ def catalog(session: Session = Depends(get_session)) -> list[dict]:
     return repo.list_catalog(session)
 
 
+# Уровня niche здесь нет: список ниш для дашборда отдаёт /api/v1/niches/dashboard
+# с проверкой видимости, а /levels работает без авторизации.
 @router.get("/levels")
 def levels(category: str, geo: str, marketplace: str,
            level: str = Query("category", pattern="^(category|subcategory|item)$"),
@@ -25,10 +30,11 @@ def levels(category: str, geo: str, marketplace: str,
                             marketplace=marketplace, level=level)
 
 
+# level=niche: level_key - id ниши (из /api/v1/niches/dashboard)
 @router.get("/snapshot")
 def snapshot(category: str, geo: str, marketplace: str, level_key: str,
              algorithm: str = Query(..., pattern="^(EWMA|MACD|CUSUM)$"),
-             level: str = Query("category", pattern="^(category|subcategory|item)$"),
+             level: str = Query("category", pattern="^(category|subcategory|item|niche)$"),
              session: Session = Depends(get_session)) -> dict:
     """Снепшот целиком: метаданные, события и кривая рынка.
 
@@ -82,7 +88,7 @@ def snapshot(category: str, geo: str, marketplace: str, level_key: str,
 @router.get("/chart.png")
 def chart(category: str, geo: str, marketplace: str, level_key: str,
           algorithm: str = Query(..., pattern="^(EWMA|MACD|CUSUM)$"),
-          level: str = Query("category", pattern="^(category|subcategory|item)$"),
+          level: str = Query("category", pattern="^(category|subcategory|item|niche)$"),
           session: Session = Depends(get_session)) -> Response:
     """PNG для отчёта и отладки. Основной формат для фронта - /snapshot."""
     run = repo.latest_run(session, category=category, geo=geo, marketplace=marketplace,
@@ -93,8 +99,17 @@ def chart(category: str, geo: str, marketplace: str, level_key: str,
     curve = repo.run_curve(session, run)
     events = repo.run_events(session, run)
     subtitle = f"{run.algorithm}, карточек {run.n_cards}, событий {len(events)}"
-    png = render_chart(curve, events, title=run.level_key, subtitle=subtitle)
+    png = render_chart(curve, events, title=_chart_title(session, run), subtitle=subtitle)
     return Response(content=png, media_type="image/png")
+
+
+def _chart_title(session: Session, run) -> str:
+    """У ниши level_key - это id; на графике подписываем поисковым запросом."""
+    if run.level == "niche":
+        niche = session.get(Niche, UUID(run.level_key))
+        if niche is not None and niche.search_query:
+            return niche.search_query
+    return run.level_key
 
 
 def _pct(value) -> float | None:
