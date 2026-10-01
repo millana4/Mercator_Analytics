@@ -9,4 +9,4 @@ venv/
 *.log
 .pytest_cache/
 /data
-/debug
+/debug.env.mock.bak
