@@ -56,12 +56,14 @@ class LimitsOut(BaseModel):
 
 class DashboardNicheOut(BaseModel):
     """Ниша для блока «Товарная ниша»: подпись - search_query,
-    «Подробнее о товарной нише» - description и reference_url."""
+    «Подробнее о товарной нише» - description, reference_url и аналоги.
+    ready = False - подбор завершён, замеры копятся, расчёта ещё нет."""
     id: str
     search_query: str | None
     description: str | None
     reference_url: str | None
     is_own: bool
+    ready: bool
 
 
 def _out(niche: Niche, user: User) -> NicheOut:
@@ -96,10 +98,12 @@ def get_limits(user: User = Depends(get_current_user),
 def dashboard_niches(category: str, marketplace: str, geo: str,
                      user: User = Depends(get_current_user),
                      session: Session = Depends(get_session)) -> list[DashboardNicheOut]:
-    """Ниши с готовым результатом. Данные ниши - /api/v1/snapshot?level=niche&level_key=<id>."""
+    """Ниши с готовым результатом и с завершённым подбором.
+    Данные ниши - /api/v1/snapshot?level=niche&level_key=<id>."""
+    ready = service.ready_niche_ids(session, category, marketplace, geo)
     return [DashboardNicheOut(id=str(n.id), search_query=n.search_query,
                               description=n.description, reference_url=n.reference_url,
-                              is_own=n.owner_id == user.id)
+                              is_own=n.owner_id == user.id, ready=str(n.id) in ready)
             for n in service.dashboard(session, user, category, marketplace, geo)]
 
 

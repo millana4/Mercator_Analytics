@@ -254,15 +254,21 @@ def sync_core_state() -> int:
 
 
 # ---------- 7. Ниши для дашборда ----------
-def dashboard(session: Session, user: User, category: str, marketplace: str,
-              geo: str) -> list[Niche]:
-    """Видимые пользователю ниши связки, у которых в последнем снепшоте хотя бы
-    один алгоритм дал результат. Пока данных недостаточно, ниша не показывается."""
-    niches = list_available(session, user, category, marketplace, geo)
+def ready_niche_ids(session: Session, category: str, marketplace: str, geo: str) -> set[str]:
+    """id ниш связки, у которых в последнем снепшоте хотя бы один алгоритм дал результат."""
     rows = repo.list_levels(session, category=category, geo=geo,
                             marketplace=marketplace, level="niche")
-    ready = {r["level_key"] for r in rows if r["sufficient"]}
-    return [n for n in niches if str(n.id) in ready]
+    return {r["level_key"] for r in rows if r["sufficient"]}
+
+
+def dashboard(session: Session, user: User, category: str, marketplace: str,
+              geo: str) -> list[Niche]:
+    """Видимые пользователю ниши связки: с готовым результатом и с завершённым
+    подбором карточек (статус ядра active), по которым расчёт ещё не готов -
+    у таких на дашборде список аналогов и заглушка вместо аналитики."""
+    niches = list_available(session, user, category, marketplace, geo)
+    ready = ready_niche_ids(session, category, marketplace, geo)
+    return [n for n in niches if str(n.id) in ready or n.core_status == "active"]
 
 
 # ---------- 8. Аналоги ниши ----------

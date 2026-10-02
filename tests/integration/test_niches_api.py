@@ -137,19 +137,25 @@ def test_get_unknown_and_malformed_id(client, auth_headers):
 
 def test_dashboard_and_snapshot(client, auth_headers, core_client, db_session):
     niche_id = _create(client, auth_headers, description="платье").json()["id"]
-    # расчётов ещё нет - на дашборде ниши нет
+    # подбор в ядре не завершён и расчётов нет - на дашборде ниши нет
     assert client.get("/api/v1/niches/dashboard", params=KIDS,
                       headers=auth_headers).json() == []
 
+    # подбор завершён (active), расчёта ещё нет - ниша на дашборде, ready = False
     niche = db_session.get(Niche, UUID(niche_id))
+    niche.core_status = "active"
     niche.search_query = "платье для девочки 7 лет"
     db_session.commit()
-    _niche_run(db_session, UUID(niche_id))
-
+    expected = {"id": niche_id, "search_query": "платье для девочки 7 лет",
+                "description": "платье", "reference_url": None, "is_own": True}
     dash = client.get("/api/v1/niches/dashboard", params=KIDS, headers=auth_headers)
     assert dash.status_code == 200
-    assert dash.json() == [{"id": niche_id, "search_query": "платье для девочки 7 лет",
-                            "description": "платье", "reference_url": None, "is_own": True}]
+    assert dash.json() == [{**expected, "ready": False}]
+
+    # готовый расчёт - ready = True
+    _niche_run(db_session, UUID(niche_id))
+    dash = client.get("/api/v1/niches/dashboard", params=KIDS, headers=auth_headers)
+    assert dash.json() == [{**expected, "ready": True}]
 
     params = {**KIDS, "level": "niche", "level_key": niche_id, "algorithm": "EWMA"}
     snap = client.get("/api/v1/snapshot", params=params)
