@@ -263,3 +263,22 @@ def dashboard(session: Session, user: User, category: str, marketplace: str,
                             marketplace=marketplace, level="niche")
     ready = {r["level_key"] for r in rows if r["sufficient"]}
     return [n for n in niches if str(n.id) in ready]
+
+
+# ---------- 8. Аналоги ниши ----------
+def _sku(value) -> str:
+    return value if isinstance(value, str) else str(int(value))
+
+
+def analogs(session: Session, user: User, niche_id: UUID) -> list[dict]:
+    """Самые близкие к референсу активные карточки ниши, по убыванию близости,
+    не больше NICHE_ANALOGS_LIMIT. Состав и близость - из ядра; карточка без
+    близости в список не попадает."""
+    niche = get_visible(session, user, niche_id)
+    cards = _core_connector().get_niche_cards(str(niche.id))
+    active = cards[(cards["status"] == "active") & cards["similarity"].notna()]
+    top = (active.sort_values("similarity", ascending=False, kind="stable")
+           .head(policies.NICHE_ANALOGS_LIMIT))
+    return [{"sku": _sku(r["sku"]), "name": _nullable(r["name"]),
+             "url": _nullable(r["url"]), "similarity": float(r["similarity"])}
+            for _, r in top.iterrows()]

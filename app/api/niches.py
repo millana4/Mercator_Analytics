@@ -40,6 +40,14 @@ class NicheOut(BaseModel):
     core_error: str | None
 
 
+class AnalogOut(BaseModel):
+    """Карточка-аналог ниши. График цены - /api/v1/cards/{sku}/measurements."""
+    sku: str
+    name: str | None
+    url: str | None
+    similarity: float
+
+
 class LimitsOut(BaseModel):
     used: int
     limit: int
@@ -113,6 +121,17 @@ def get_niche(niche_id: UUID,
               session: Session = Depends(get_session)) -> NicheOut:
     try:
         return _out(service.get_visible(session, user, niche_id), user)
+    except NicheError as e:
+        _raise(e)
+
+
+@router.get("/{niche_id}/analogs")
+def niche_analogs(niche_id: UUID,
+                  user: User = Depends(get_current_user),
+                  session: Session = Depends(get_session)) -> list[AnalogOut]:
+    """До 30 самых близких активных карточек ниши, по убыванию близости."""
+    try:
+        return [AnalogOut(**a) for a in service.analogs(session, user, niche_id)]
     except NicheError as e:
         _raise(e)
 

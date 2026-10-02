@@ -62,6 +62,9 @@ MIN_CARDS_NICHE: int = 26
 # (задания pending и неотправленные удаления), секунд.
 NICHE_RESEND_INTERVAL_SECONDS: int = 60
 
+# сколько аналогов ниши отдаёт /niches/{id}/analogs
+NICHE_ANALOGS_LIMIT = 30
+
 def grid_times() -> tuple[time, ...]:
     """Точки сетки регуляризации, отсортированные по возрастанию."""
     return tuple(sorted(time(hour=h, minute=m) for h, m in GRID_TIMES))
