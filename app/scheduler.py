@@ -23,7 +23,7 @@ def start_scheduler() -> BackgroundScheduler:
     hours, minutes = cron_expression()
     scheduler = BackgroundScheduler(timezone="Europe/Moscow")
     scheduler.add_job(
-        run_all, CronTrigger(hour=hours, minute=minutes),
+        run_all, CronTrigger(hour=hours, minute=minutes, timezone="Europe/Moscow"),
         id="analytics_run", replace_existing=True,
         max_instances=1,           # расчёт не должен накладываться сам на себя
         misfire_grace_time=3600,   # пропущенный запуск отработает в течение часа

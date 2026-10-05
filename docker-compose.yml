@@ -4,6 +4,8 @@ services:
     container_name: an-app
     env_file:
       - .env
+    environment:
+      TZ: Europe/Moscow
     ports:
       - "8020:8020"
     depends_on:
