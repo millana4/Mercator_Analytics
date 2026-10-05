@@ -32,6 +32,14 @@ def drop_short_series(df: pd.DataFrame, min_points: int) -> pd.DataFrame:
     return df[counts >= min_points].copy()
 
 
+def valid_points(df: pd.DataFrame, min_cards: int) -> pd.Index:
+    """Точки сетки, где в срезе не меньше min_cards карточек. Строка карточки есть
+    в панели с её первого замера (дальше - LOCF), поэтому число строк в точке -
+    это число карточек в срезе; по нему же считается доля участвующих."""
+    counts = df.groupby("parsed_at")["sku"].nunique()
+    return counts.index[counts >= min_cards]
+
+
 # ---------- 2. Сглаживание: одна реализация, span приходит от алгоритма ----------
 def ewm_smooth(df: pd.DataFrame, source_col: str, span: int) -> pd.Series:
     """EWMA по каждому ряду отдельно. alpha = 2/(span+1)."""
@@ -78,6 +86,7 @@ def detect_events(df: pd.DataFrame, *, algorithm: str, label: str,
                   n_bootstrap: int, ci_alpha: float,
                   rng: np.random.Generator) -> pd.DataFrame:
     """Событие = непрерывный блок точек, где доля карточек с флагом >= порога рынка.
+    Точка участвует, только если в срезе не меньше min_cards карточек.
 
     Возвращает ЧИСЛА в лог-единицах и долях, без форматирования - результат
     пишется в базу. Для чтения глазами есть format_events().
@@ -86,6 +95,7 @@ def detect_events(df: pd.DataFrame, *, algorithm: str, label: str,
     n_cards = df["sku"].nunique()
     if n_cards < min_cards:
         return pd.DataFrame()
+    ok_points = set(valid_points(df, min_cards))
 
     events = []
     for direction in ("down", "up"):
@@ -99,7 +109,7 @@ def detect_events(df: pd.DataFrame, *, algorithm: str, label: str,
                 "participation_pct": flags.mean(),
                 "magnitude_pct": participating["window_return"].mean() if len(participating) else np.nan,
                 "speed_pct_per_day": participating["velocity_per_day"].mean() if len(participating) else np.nan,
-                "signal_active": flags.mean() >= market_threshold,
+                "signal_active": t in ok_points and flags.mean() >= market_threshold,
             })
         ts = pd.DataFrame(ts_rows)
 

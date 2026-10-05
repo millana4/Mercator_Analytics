@@ -95,3 +95,28 @@ def test_empty_niche_without_query():
     assert len(results) == 3
     assert not any(r.sufficient for r in results)
     assert all("аналитики ниши:" in r.warning for r in results)
+
+
+def test_points_with_few_cards_do_not_count():
+    # 3 «старые» карточки (как карточки страт) - вся история, 30 новых - последние 8 точек
+    n_old, n_new, new_from = 3, 30, N_POINTS - 8
+    cards = _cards(n_old + n_new)
+    rows = [{"card_id": _card_id(i), "sku": 1000 + i,
+             "parsed_at": START + pd.Timedelta(hours=12 * k), "geo": "Санкт-Петербург",
+             "card_price": 1000.0 * (1 + 0.001 * ((i + k) % 3)),
+             "price": None, "original_price": None, "quantity": 5,
+             "rating": 4.9, "reviews_count": 100, "parser_id": "test"}
+            for i in range(n_old + n_new)
+            for k in range(0 if i < n_old else new_from, N_POINTS)]
+    measurements = schema.conform(pd.DataFrame(rows), schema.MEASUREMENTS)
+
+    ewma_r, macd_r, cusum_r = run_for_niche(FakeConnector(cards, measurements), _niche_row())
+
+    # EWMA: срез от 26 карточек есть только в последних 8 точках - кривая с них
+    first_full = START + pd.Timedelta(hours=12 * new_from)
+    assert ewma_r.sufficient, ewma_r.insufficient_reason
+    assert pd.Timestamp(ewma_r.curve["parsed_at"].min()) == first_full
+    assert all(pd.Timestamp(t) >= first_full for t in ewma_r.events.get("start_at", []))
+    # MACD и CUSUM: у новых карточек рядов не хватает - неуспешно
+    assert not macd_r.sufficient
+    assert not cusum_r.sufficient

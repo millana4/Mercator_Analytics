@@ -103,10 +103,12 @@ def prepare(df: pd.DataFrame, p: CusumParams = PARAMS) -> pd.DataFrame:
 
 
 def run(df: pd.DataFrame, *, label: str = "вся категория",
-        p: CusumParams = PARAMS) -> tuple[pd.DataFrame, pd.DataFrame]:
+        p: CusumParams = PARAMS, min_cards: int | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """min_cards - минимум карточек в срезе точки (порог уровня); по умолчанию p.min_cards."""
     prepared = prepare(df, p)
     events = detect_events(prepared, algorithm=ALGORITHM, label=label,
-                           market_threshold=p.market_threshold, min_cards=p.min_cards,
+                           market_threshold=p.market_threshold,
+                           min_cards=p.min_cards if min_cards is None else min_cards,
                            n_bootstrap=p.n_bootstrap, ci_alpha=p.ci_alpha,
                            rng=np.random.default_rng(p.random_seed))
     return events, prepared

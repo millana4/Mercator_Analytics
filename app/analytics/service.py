@@ -61,9 +61,28 @@ LEVEL_COLUMNS = {"EWMA": "level_smooth_2", "MACD": "ema_fast", "CUSUM": "level_s
 
 
 def _run_one(module, df: pd.DataFrame, *, set_id: str, category: str, level: str,
-             level_key: str, sel: Selection, cards: pd.DataFrame) -> LevelResult:
-    events, prepared = module.run(df.copy(), label=level_key)
+             level_key: str, sel: Selection, cards: pd.DataFrame, min_cards: int,
+             warning_label: str | None = None) -> LevelResult:
+    """Один алгоритм на одной выборке. Достаточность проверяется в каждой точке
+    сетки: точка участвует в событиях и кривой, только если в срезе не меньше
+    порога карточек (максимум из порога алгоритма и гейта уровня). Пригодных
+    точек меньше min_points алгоритма - результат неуспешный."""
+    slice_min = max(module.PARAMS.min_cards, min_cards)
+    events, prepared = module.run(df.copy(), label=level_key, min_cards=slice_min)
     n_cards = prepared["sku"].nunique()
+
+    ok_points = common.valid_points(prepared, slice_min)
+    min_points = module.PARAMS.min_points
+    if len(ok_points) < min_points:
+        reason = (f"точек сетки, где в срезе не меньше {slice_min} карточек, "
+                  f"{len(ok_points)} при минимуме {min_points}")
+        logger.warning("[%s/%s] %s: недостаточно данных - %s",
+                       level, level_key, module.ALGORITHM, reason)
+        return LevelResult(
+            set_id=set_id, category=category, level=level, level_key=level_key,
+            algorithm=module.ALGORITHM, n_cards=n_cards, total_quota=sel.total_quota,
+            sufficient=False, insufficient_reason=reason,
+            warning=f"Недостаточно данных для аналитики {warning_label or level_key}: {reason}")
 
     if len(events):
         events = events.copy()
@@ -72,23 +91,25 @@ def _run_one(module, df: pd.DataFrame, *, set_id: str, category: str, level: str
                 prepared, e["direction"], e["start_at"], e["end_at"], cards),
             axis=1)
 
-    logger.info("[%s/%s] %s: событий=%d, карточек в расчёте=%d",
-                level, level_key, module.ALGORITHM, len(events), n_cards)
+    logger.info("[%s/%s] %s: событий=%d, карточек в расчёте=%d, точек со срезом от %d карточек=%d",
+                level, level_key, module.ALGORITHM, len(events), n_cards, slice_min, len(ok_points))
     for _, e in events.iterrows():
         logger.info("    событие: %s %s - %s (%.1f сут), пик %.1f%%, изменение %.1f%%",
                     common.DIRECTION_TITLES[e["direction"]], e["start_at"], e["end_at"],
                     e["duration_days"], e["participation_pct"] * 100,
                     common.log_to_pct(e["magnitude_mean_log"]))
 
+    # кривая рынка - только по точкам с достаточным срезом
     level_col = LEVEL_COLUMNS[module.ALGORITHM]
-    curve = (prepared.groupby("parsed_at")[level_col].mean()
+    in_slice = prepared[prepared["parsed_at"].isin(ok_points)]
+    curve = (in_slice.groupby("parsed_at")[level_col].mean()
              .reset_index().rename(columns={level_col: "level_value"}))
 
     return LevelResult(
         set_id=set_id, category=category, level=level, level_key=level_key,
         algorithm=module.ALGORITHM, n_cards=n_cards, total_quota=sel.total_quota,
         deficit_share=sel.deficit_share, scale_factor=sel.scale_factor,
-        events=events, curve=curve, warning=sel.warning_text(level_key),
+        events=events, curve=curve, warning=sel.warning_text(warning_label or level_key),
     )
 
 # ---------- 1. Уровень категории ----------
@@ -115,7 +136,7 @@ def run_category(assignment: Assignment, *, set_id: str, category: str,
         df = common.build_analysis_panel(panel, cards, strata, sel.card_ids)
         results.append(_run_one(module, df, set_id=set_id, category=category,
                                 level="category", level_key=category, sel=sel,
-                                cards=cards))
+                                cards=cards, min_cards=policies.MIN_CARDS_CATEGORY))
     return results
 
 
@@ -149,7 +170,7 @@ def run_subcategories(assignment: Assignment, *, set_id: str, category: str,
             df = common.build_analysis_panel(panel, cards, strata, sel.card_ids)
             results.append(_run_one(module, df, set_id=set_id, category=category,
                                     level="subcategory", level_key=label, sel=sel,
-                                    cards=cards))
+                                    cards=cards, min_cards=policies.MIN_CARDS_SUBCATEGORY))
     return results
 
 # ---------- 3. Весь сет целиком ----------
@@ -237,7 +258,8 @@ def run_for_niche(connector, niche_row: pd.Series) -> list[LevelResult]:
         df = common.build_analysis_panel(panel, cards, no_strata, sel.card_ids)
         results.append(_run_one(module, df, set_id=niche_id, category=category,
                                 level="niche", level_key=niche_id, sel=sel,
-                                cards=cards))
+                                cards=cards, min_cards=policies.MIN_CARDS_NICHE,
+                                warning_label=label))
 
     logger.info("Расчёт ниши завершён: снепшотов посчитано=%d", len(results))
     return results
