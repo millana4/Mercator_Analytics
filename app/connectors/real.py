@@ -54,15 +54,19 @@ JOIN geo g ON g.id = n.geo_id
 
 # stratum_id::text - у карточек, созданных для ниши, страты нет (NULL);
 # в канон id идут строкой, приведение в SQL делает это явно.
+# Кандидат - по card_id: у подставленного размера sku кандидата остаётся от исходной
+# карточки, а в нише - карточка нужного размера (на неё указывает card_id кандидата).
+# unit_price - цена аналога за штуку из score_details (ядро, V14).
 SQL_NICHE_CARDS = """
 SELECT n.external_id AS niche_id, c.id AS card_id, c.stratum_id::text AS stratum_id,
        c.sku, c.name, c.url, c.collection, c.status,
        c.created_at, c.dropped_at, c.out_of_stock_since, c.last_measured_at,
-       nc.added_at, cand.similarity
+       nc.added_at, cand.similarity,
+       (cand.score_details->>'unit_price')::float AS unit_price
 FROM niche n
 JOIN niche_card nc ON nc.niche_id = n.id
 JOIN card c ON c.id = nc.card_id
-LEFT JOIN niche_candidate cand ON cand.niche_id = n.id AND cand.sku = c.sku
+LEFT JOIN niche_candidate cand ON cand.niche_id = n.id AND cand.card_id = c.id
 WHERE n.external_id = :niche_id
 """
 

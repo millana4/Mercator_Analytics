@@ -16,6 +16,7 @@ from app.users.models import User, UserSubscription
 
 KIDS = ("kids_clothing", "ozon", "Санкт-Петербург")
 ADULT = ("clothing", "ozon", "Санкт-Петербург")
+REF_URL = "https://www.ozon.ru/product/platye-dlya-devochki-123456789/"
 
 
 # ---------- 1. Данные теста ----------
@@ -34,7 +35,7 @@ def _niche(session, owner, *, combo=KIDS, status=NicheStatus.SUBMITTED) -> Niche
     """Ниша напрямую в базе, минуя create(); владелец записан и в user_niche."""
     category, marketplace, geo = combo
     niche = Niche(owner_id=owner.id, category=category, marketplace=marketplace, geo=geo,
-                  description="тестовая ниша", status=status)
+                  description="тестовая ниша", reference_url=REF_URL, status=status)
     session.add(niche)
     session.flush()
     session.add(UserNiche(user_id=owner.id, niche_id=niche.id))
@@ -94,15 +95,24 @@ def _set_core(monkeypatch, connector):
     monkeypatch.setattr(service, "_core_connector", lambda: connector)
 
 
-# ---------- 2. Лимит и удаление ----------
+# ---------- 2. Создание, лимит и удаление ----------
+def test_create_requires_reference_url(db_session, core_client):
+    user = _user(db_session)
+    with pytest.raises(NicheError) as e:
+        service.create(db_session, user, *KIDS, "платье для девочки", None)
+    assert e.value.status_code == 400
+    assert "ссылку на карточку-референс" in e.value.message
+    assert core_client.created == []
+
+
 def test_limit_internal_user(db_session, core_client, monkeypatch):
     monkeypatch.setattr(policies, "FREE_NICHES_INTERNAL", 2)
     user = _user(db_session, is_internal=True)
     for _ in range(2):
-        niche = service.create(db_session, user, *KIDS, "платье", None)
+        niche = service.create(db_session, user, *KIDS, "платье", REF_URL)
         assert niche.status == NicheStatus.SUBMITTED
     with pytest.raises(NicheError) as e:
-        service.create(db_session, user, *KIDS, "ещё одно платье", None)
+        service.create(db_session, user, *KIDS, "ещё одно платье", REF_URL)
     assert e.value.status_code == 403
     assert "2 из 2" in e.value.message
     assert service.limits(db_session, user) == {"used": 2, "limit": 2, "is_internal": True}
@@ -112,9 +122,9 @@ def test_limit_internal_user(db_session, core_client, monkeypatch):
 def test_limit_external_user(db_session, core_client, monkeypatch):
     monkeypatch.setattr(policies, "FREE_NICHES_EXTERNAL", 1)
     user = _user(db_session, is_internal=False)
-    service.create(db_session, user, *KIDS, "платье", None)
+    service.create(db_session, user, *KIDS, "платье", REF_URL)
     with pytest.raises(NicheError) as e:
-        service.create(db_session, user, *KIDS, "второе платье", None)
+        service.create(db_session, user, *KIDS, "второе платье", REF_URL)
     assert e.value.status_code == 403
     assert service.limits(db_session, user)["limit"] == 1
 
@@ -122,10 +132,10 @@ def test_limit_external_user(db_session, core_client, monkeypatch):
 def test_delete_frees_slot(db_session, core_client, monkeypatch):
     monkeypatch.setattr(policies, "FREE_NICHES_EXTERNAL", 1)
     user = _user(db_session, is_internal=False)
-    niche = service.create(db_session, user, *KIDS, "платье", None)
+    niche = service.create(db_session, user, *KIDS, "платье", REF_URL)
     service.delete(db_session, user, niche.id)
     assert core_client.deleted == [niche.id]
-    service.create(db_session, user, *KIDS, "новое платье", None)   # место освободилось
+    service.create(db_session, user, *KIDS, "новое платье", REF_URL)   # место освободилось
     assert service.limits(db_session, user)["used"] == 1
 
 
@@ -143,7 +153,7 @@ def test_cannot_delete_foreign_niche(db_session, core_client):
 def test_create_requires_subscription(db_session, core_client):
     user = _user(db_session, subscriptions=(KIDS,))
     with pytest.raises(NicheError) as e:
-        service.create(db_session, user, *ADULT, "платье", None)
+        service.create(db_session, user, *ADULT, "платье", REF_URL)
     assert e.value.status_code == 400
     assert core_client.created == []
 

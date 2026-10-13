@@ -41,11 +41,14 @@ class NicheOut(BaseModel):
 
 
 class AnalogOut(BaseModel):
-    """Карточка-аналог ниши. График цены - /api/v1/cards/{sku}/measurements."""
+    """Карточка-аналог ниши. График цены - /api/v1/cards/{sku}/measurements.
+    unit_price - цена за штуку (у многопака - за одну вещь); пусто, если ядро
+    её не посчитало."""
     sku: str
     name: str | None
     url: str | None
     similarity: float
+    unit_price: float | None = None
 
 
 class LimitsOut(BaseModel):

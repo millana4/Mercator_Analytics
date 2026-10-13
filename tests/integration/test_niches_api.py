@@ -95,9 +95,16 @@ def test_create_and_read(client, auth_headers, core_client):
     assert one.json()["reference_url"] == REF_URL
 
 
+def test_create_with_reference_only(client, auth_headers, core_client):
+    resp = _create(client, auth_headers, reference_url=REF_URL)
+    assert resp.status_code == 201
+    assert resp.json()["description"] is None
+
+
 @pytest.mark.parametrize("fields, detail", [
-    ({}, "описание или ссылку"),
-    ({"description": "   "}, "описание или ссылку"),
+    ({}, "ссылку на карточку-референс"),
+    ({"description": "платье для девочки 7 лет"}, "ссылку на карточку-референс"),
+    ({"reference_url": "   "}, "ссылку на карточку-референс"),
     ({"reference_url": "https://www.wildberries.ru/catalog/1/detail.aspx"}, "не на ozon"),
     ({"reference_url": "https://ozon.ru/t/AbCdEf1"}, "не на карточку товара"),
 ])
@@ -111,15 +118,18 @@ def test_create_validation(client, auth_headers, core_client, fields, detail):
 def test_create_for_unsubscribed_combo(client, auth_headers, core_client):
     resp = client.post("/api/v1/niches",
                        json={"category": "clothing", "marketplace": "ozon",
-                             "geo": "Санкт-Петербург", "description": "платье"},
+                             "geo": "Санкт-Петербург", "description": "платье",
+                             "reference_url": REF_URL},
                        headers=auth_headers)
     assert resp.status_code == 400
     assert core_client.created == []
 
 
 def test_limit_and_delete(client, auth_headers, core_client):
-    ids = [_create(client, auth_headers, description=f"ниша {i}").json()["id"] for i in range(2)]
-    assert _create(client, auth_headers, description="лишняя").status_code == 403
+    ids = [_create(client, auth_headers, description=f"ниша {i}",
+                   reference_url=REF_URL).json()["id"] for i in range(2)]
+    assert _create(client, auth_headers, description="лишняя",
+                   reference_url=REF_URL).status_code == 403
     assert client.get("/api/v1/niches/limits", headers=auth_headers).json()["used"] == 2
 
     resp = client.delete(f"/api/v1/niches/{ids[0]}", headers=auth_headers)
@@ -127,7 +137,8 @@ def test_limit_and_delete(client, auth_headers, core_client):
     assert core_client.deleted == [UUID(ids[0])]
     listed = {n["id"] for n in client.get("/api/v1/niches", headers=auth_headers).json()}
     assert ids[0] not in listed and ids[1] in listed
-    assert _create(client, auth_headers, description="вместо удалённой").status_code == 201
+    assert _create(client, auth_headers, description="вместо удалённой",
+                   reference_url=REF_URL).status_code == 201
 
 
 def test_get_unknown_and_malformed_id(client, auth_headers):
@@ -136,7 +147,8 @@ def test_get_unknown_and_malformed_id(client, auth_headers):
 
 
 def test_dashboard_and_snapshot(client, auth_headers, core_client, db_session):
-    niche_id = _create(client, auth_headers, description="платье").json()["id"]
+    niche_id = _create(client, auth_headers, description="платье",
+                       reference_url=REF_URL).json()["id"]
     # подбор в ядре не завершён и расчётов нет - на дашборде ниши нет
     assert client.get("/api/v1/niches/dashboard", params=KIDS,
                       headers=auth_headers).json() == []
@@ -147,7 +159,7 @@ def test_dashboard_and_snapshot(client, auth_headers, core_client, db_session):
     niche.search_query = "платье для девочки 7 лет"
     db_session.commit()
     expected = {"id": niche_id, "search_query": "платье для девочки 7 лет",
-                "description": "платье", "reference_url": None, "is_own": True}
+                "description": "платье", "reference_url": REF_URL, "is_own": True}
     dash = client.get("/api/v1/niches/dashboard", params=KIDS, headers=auth_headers)
     assert dash.status_code == 200
     assert dash.json() == [{**expected, "ready": False}]
@@ -171,16 +183,19 @@ def test_dashboard_and_snapshot(client, auth_headers, core_client, db_session):
 
 
 def test_analogs(client, auth_headers, core_client, monkeypatch):
-    niche_id = _create(client, auth_headers, description="лонгслив для девочки").json()["id"]
+    niche_id = _create(client, auth_headers, description="лонгслив для девочки",
+                       reference_url=REF_URL).json()["id"]
 
-    # 35 активных с близостью 0.900..0.934, выбывшая с самой высокой и активная без близости
+    # 35 активных с близостью 0.900..0.934 (у #33 цены за штуку нет),
+    # выбывшая с самой высокой и активная без близости
     rows = [{"sku": 1000 + i, "name": f"Лонгслив {i}",
              "url": f"https://www.ozon.ru/product/{1000 + i}/",
-             "status": "active", "similarity": 0.900 + i / 1000} for i in range(35)]
+             "status": "active", "similarity": 0.900 + i / 1000,
+             "unit_price": None if i == 33 else 1000.0 + i} for i in range(35)]
     rows.append({"sku": 2000, "name": "Выбывший", "url": None,
-                 "status": "dropped", "similarity": 0.99})
+                 "status": "dropped", "similarity": 0.99, "unit_price": 500.0})
     rows.append({"sku": 2001, "name": "Без близости", "url": None,
-                 "status": "active", "similarity": None})
+                 "status": "active", "similarity": None, "unit_price": 500.0})
     cards = pd.DataFrame(rows).sample(frac=1, random_state=1)
 
     requested = []
@@ -202,6 +217,8 @@ def test_analogs(client, auth_headers, core_client, monkeypatch):
     assert body[0]["sku"] == "1034" and body[0]["name"] == "Лонгслив 34"
     assert body[0]["url"] == "https://www.ozon.ru/product/1034/"
     assert abs(body[0]["similarity"] - 0.934) < 1e-9
+    assert body[0]["unit_price"] == 1034.0
+    assert body[1]["sku"] == "1033" and body[1]["unit_price"] is None
     assert body[-1]["sku"] == "1005"
     assert {a["sku"] for a in body}.isdisjoint({"2000", "2001"})
 

@@ -136,8 +136,24 @@ class MockConnector:
         # у card своя колонка niche_id (ниша-создатель) - к составу ниши она не относится
         cards = self._raw["card"].rename(columns={"id": "card_id"}).drop(columns=["niche_id"])
         cand = raw["niche_candidate"]
-        cand = cand.loc[cand["niche_id"] == core_id, ["sku", "similarity"]]
+        cand = cand.loc[cand["niche_id"] == core_id].copy()
+        # score_details есть в дампах после V14 ядра; в старых цена аналога пуста
+        details = (cand["score_details"] if "score_details" in cand.columns
+                   else pd.Series([None] * len(cand), index=cand.index, dtype=object))
+        cand["unit_price"] = details.map(_unit_price)
+        # по card_id: у подставленного размера sku кандидата - исходной карточки,
+        # card_id - карточки нужного размера, которая в нише
+        cand = cand[["card_id", "similarity", "unit_price"]]
 
-        c = members.merge(cards, on="card_id", how="inner").merge(cand, on="sku", how="left")
+        c = members.merge(cards, on="card_id", how="inner").merge(cand, on="card_id", how="left")
         c["niche_id"] = niche_id
         return schema.conform(c, schema.NICHE_CARDS)
+
+def _unit_price(details) -> float | None:
+    """Цена аналога за штуку из niche_candidate.score_details (jsonb в дампе - строкой)."""
+    if details is None or (not isinstance(details, (str, dict)) and pd.isna(details)):
+        return None
+    if isinstance(details, str):
+        details = json.loads(details) if details else {}
+    value = details.get("unit_price") if isinstance(details, dict) else None
+    return None if value is None else float(value)

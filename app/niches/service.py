@@ -86,8 +86,9 @@ def create(session: Session, user: User, category: str, marketplace: str, geo: s
     ниша остаётся pending и досылается планировщиком."""
     description = (description or "").strip() or None
     reference_url = (reference_url or "").strip() or None
-    if description is None and reference_url is None:
-        raise NicheError(400, "Заполните описание или ссылку на референс")
+    # аналоги подбираются только по карточке-референсу; описание — по желанию
+    if reference_url is None:
+        raise NicheError(400, "Укажите ссылку на карточку-референс")
 
     subscribed = session.scalar(
         select(UserSubscription.id).where(
@@ -98,11 +99,10 @@ def create(session: Session, user: User, category: str, marketplace: str, geo: s
     if subscribed is None:
         raise NicheError(400, "Связка категория / маркетплейс / гео недоступна пользователю")
 
-    if reference_url:
-        try:
-            validate_reference_url(marketplace, reference_url)
-        except ReferenceUrlError as e:
-            raise NicheError(400, str(e))
+    try:
+        validate_reference_url(marketplace, reference_url)
+    except ReferenceUrlError as e:
+        raise NicheError(400, str(e))
 
     # Лимит — под блокировкой строки пользователя: два одновременных запроса
     # не обойдут его. Блокировка снимается на commit.
@@ -276,15 +276,24 @@ def _sku(value) -> str:
     return value if isinstance(value, str) else str(int(value))
 
 
+def _sku(value) -> str:
+    return value if isinstance(value, str) else str(int(value))
+
+
+def _price(value) -> float | None:
+    return None if value is None or pd.isna(value) else float(value)
+
+
 def analogs(session: Session, user: User, niche_id: UUID) -> list[dict]:
     """Самые близкие к референсу активные карточки ниши, по убыванию близости,
-    не больше NICHE_ANALOGS_LIMIT. Состав и близость - из ядра; карточка без
-    близости в список не попадает."""
+    не больше NICHE_ANALOGS_LIMIT. Состав, близость и цена аналога за штуку -
+    из ядра; карточка без близости в список не попадает."""
     niche = get_visible(session, user, niche_id)
     cards = _core_connector().get_niche_cards(str(niche.id))
     active = cards[(cards["status"] == "active") & cards["similarity"].notna()]
     top = (active.sort_values("similarity", ascending=False, kind="stable")
            .head(policies.NICHE_ANALOGS_LIMIT))
     return [{"sku": _sku(r["sku"]), "name": _nullable(r["name"]),
-             "url": _nullable(r["url"]), "similarity": float(r["similarity"])}
+             "url": _nullable(r["url"]), "similarity": float(r["similarity"]),
+             "unit_price": _price(r.get("unit_price"))}
             for _, r in top.iterrows()]
