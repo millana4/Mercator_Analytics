@@ -26,7 +26,7 @@ def _cards(n: int, status: str = "active") -> pd.DataFrame:
              "sku": 1000 + i, "name": f"Товар {i}", "url": f"https://example.com/{i}",
              "collection": None, "status": status, "created_at": "2026-08-01",
              "dropped_at": None, "out_of_stock_since": None, "last_measured_at": None,
-             "added_at": "2026-08-01", "similarity": 0.99 - i * 0.001, "unit_price": None}
+             "added_at": "2026-08-01", "similarity": 0.99 - i * 0.001}
             for i in range(n)]
     return schema.conform(pd.DataFrame(rows), schema.NICHE_CARDS)
 

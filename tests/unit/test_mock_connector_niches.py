@@ -49,17 +49,9 @@ def _base_tables(card_columns, card_rows) -> list[str]:
     ]
 
 
-def _niche_tables(with_details: bool = True) -> list[str]:
+def _niche_tables() -> list[str]:
     """Кандидат c5 - подставленный размер: sku кандидата 199 (исходная карточка),
     в нише - карточка c5 (sku 105), на неё указывает card_id."""
-    cand_columns = ["niche_id", "sku", "card_id", "similarity", "status"]
-    cand_rows = [(CORE_A, 101, "c1", 0.95, "selected"), (CORE_A, 102, "c2", 0.9, "selected"),
-                 (CORE_B, 102, "c2", 0.8, "selected"), (CORE_A, 199, "c5", 0.85, "selected")]
-    if with_details:
-        cand_columns.append("score_details")
-        details = ['{"unit_price": 1500.0, "text": 0.9}', None,
-                   '{"unit_price": 990.0}', '{"unit_price": 1200.0}']
-        cand_rows = [row + (d,) for row, d in zip(cand_rows, details)]
     return [
         _copy("niche", ["id", "marketplace_id", "category_id", "geo_id", "external_id",
                         "search_query", "status", "error", "target_count", "plan_count"],
@@ -69,7 +61,9 @@ def _niche_tables(with_details: bool = True) -> list[str]:
         _copy("niche_card", ["niche_id", "card_id", "added_at"],
               [(CORE_A, "c1", TS), (CORE_A, "c2", TS), (CORE_A, "c3", TS),
                (CORE_A, "c5", TS), (CORE_B, "c2", TS)]),
-        _copy("niche_candidate", cand_columns, cand_rows),
+        _copy("niche_candidate", ["niche_id", "sku", "card_id", "similarity", "status"],
+              [(CORE_A, 101, "c1", 0.95, "selected"), (CORE_A, 102, "c2", 0.9, "selected"),
+               (CORE_B, 102, "c2", 0.8, "selected"), (CORE_A, 199, "c5", 0.85, "selected")]),
     ]
 
 
@@ -78,9 +72,8 @@ def _connector(tmp_path, blocks: list[str]) -> MockConnector:
     return MockConnector(tmp_path)
 
 
-def _new_dump(tmp_path, with_details: bool = True) -> MockConnector:
-    return _connector(tmp_path, _base_tables(CARD_COLUMNS, CARD_ROWS)
-                      + _niche_tables(with_details))
+def _new_dump(tmp_path) -> MockConnector:
+    return _connector(tmp_path, _base_tables(CARD_COLUMNS, CARD_ROWS) + _niche_tables())
 
 
 def test_get_niches(tmp_path):
@@ -99,24 +92,23 @@ def test_get_niches(tmp_path):
     assert pd.isna(c["search_query"])
 
 
-def test_get_niche_cards_members_similarity_and_price(tmp_path):
-    cards = _new_dump(tmp_path).get_niche_cards(EXT_A).set_index("card_id")
-    assert set(cards.index) == {"c1", "c2", "c3", "c5"}    # c4 ни в одной нише
-    assert (cards["niche_id"] == EXT_A).all()
-    assert cards.loc["c1", "similarity"] == 0.95
-    assert cards.loc["c2", "similarity"] == 0.9             # кандидат своей ниши, не 0.8 из B
-    assert pd.isna(cards.loc["c3", "similarity"])           # кандидата нет
-    assert cards.loc["c1", "unit_price"] == 1500.0
-    assert pd.isna(cards.loc["c2", "unit_price"])           # score_details пуст
-    assert cards.loc["c1", "stratum_id"] == "st1"
-    assert pd.isna(cards.loc["c2", "stratum_id"])
+def test_get_niche_cards_members_and_similarity(tmp_path):
+    cards = _new_dump(tmp_path).get_niche_cards(EXT_A)
+    assert list(cards.columns) == list(schema.NICHE_CARDS)
+    by_id = cards.set_index("card_id")
+    assert set(by_id.index) == {"c1", "c2", "c3", "c5"}    # c4 ни в одной нише
+    assert (by_id["niche_id"] == EXT_A).all()
+    assert by_id.loc["c1", "similarity"] == 0.95
+    assert by_id.loc["c2", "similarity"] == 0.9             # кандидат своей ниши, не 0.8 из B
+    assert pd.isna(by_id.loc["c3", "similarity"])           # кандидата нет
+    assert by_id.loc["c1", "stratum_id"] == "st1"
+    assert pd.isna(by_id.loc["c2", "stratum_id"])
 
 
 def test_substituted_size_found_by_card_id(tmp_path):
     cards = _new_dump(tmp_path).get_niche_cards(EXT_A).set_index("card_id")
     assert cards.loc["c5", "sku"] == 105                    # в нише - карточка размера
     assert cards.loc["c5", "similarity"] == 0.85            # кандидат с sku 199 - по card_id
-    assert cards.loc["c5", "unit_price"] == 1200.0
 
 
 def test_card_created_for_other_niche_belongs_by_membership(tmp_path):
@@ -124,16 +116,6 @@ def test_card_created_for_other_niche_belongs_by_membership(tmp_path):
     assert cards["card_id"].tolist() == ["c2"]
     assert cards["niche_id"].iloc[0] == EXT_B
     assert cards["similarity"].iloc[0] == 0.8
-    assert cards["unit_price"].iloc[0] == 990.0
-
-
-def test_candidates_without_score_details(tmp_path):
-    # дамп до V14 ядра: у niche_candidate нет score_details - цена пуста, близость есть
-    cards = _new_dump(tmp_path, with_details=False).get_niche_cards(EXT_A)
-    assert list(cards.columns) == list(schema.NICHE_CARDS)
-    by_id = cards.set_index("card_id")
-    assert by_id.loc["c1", "similarity"] == 0.95
-    assert by_id["unit_price"].isna().all()
 
 
 def test_unknown_niche_empty(tmp_path):

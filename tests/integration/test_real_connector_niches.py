@@ -1,4 +1,4 @@
-# ---------- RealConnector: ниши и состав ниш против дампа ядра с V7-V14 ----------
+# ---------- RealConnector: ниши и состав ниш против дампа ядра с V7-V15 ----------
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -78,12 +78,12 @@ def niche_data(core_test_db):
                         [(d.niche_a, d.c1), (d.niche_a, d.c2), (d.niche_a, d.c3),
                          (d.niche_a, d.c4), (d.niche_b, d.c2)])
         cur.executemany(
-            "INSERT INTO niche_candidate (niche_id, sku, source, card_id, similarity, status, "
-            "score_details) VALUES (%s, %s, %s, %s, %s, 'selected', %s::jsonb)",
-            [(d.niche_a, SKUS[1], "stratum", d.c1, 0.95, '{"unit_price": 1500.0}'),
-             (d.niche_a, SKUS[2], "search", d.c2, 0.9, None),
-             (d.niche_b, SKUS[2], "search", d.c2, 0.8, '{"unit_price": 990.0}'),
-             (d.niche_a, SUBSTITUTED_FROM, "search", d.c4, 0.85, '{"unit_price": 1200.0}')])
+            "INSERT INTO niche_candidate (niche_id, sku, source, card_id, similarity, status) "
+            "VALUES (%s, %s, %s, %s, %s, 'selected')",
+            [(d.niche_a, SKUS[1], "stratum", d.c1, 0.95),
+             (d.niche_a, SKUS[2], "search", d.c2, 0.9),
+             (d.niche_b, SKUS[2], "search", d.c2, 0.8),
+             (d.niche_a, SUBSTITUTED_FROM, "search", d.c4, 0.85)])
     yield d
     # удаление ниш каскадом убирает состав, кандидатов и карточки, созданные для ниш
     with psycopg.connect(CORE_DSN, autocommit=True) as conn, conn.cursor() as cur:
@@ -107,7 +107,7 @@ def test_get_niches(real_connector, niche_data):
     assert pd.isna(c["search_query"])
 
 
-def test_get_niche_cards_members_similarity_price_and_types(real_connector, niche_data):
+def test_get_niche_cards_members_similarity_and_types(real_connector, niche_data):
     d = niche_data
     cards = real_connector.get_niche_cards(str(d.ext_a))
     assert list(cards.columns) == list(schema.NICHE_CARDS)
@@ -115,7 +115,6 @@ def test_get_niche_cards_members_similarity_price_and_types(real_connector, nich
     assert cards["stratum_id"].dtype == "string"
     assert cards["sku"].dtype == "Int64"
     assert cards["similarity"].dtype == "Float64"
-    assert cards["unit_price"].dtype == "Float64"
 
     by_id = cards.set_index("card_id")
     assert set(by_id.index) == {str(d.c1), str(d.c2), str(d.c3), str(d.c4)}
@@ -123,8 +122,6 @@ def test_get_niche_cards_members_similarity_price_and_types(real_connector, nich
     assert by_id.loc[str(d.c1), "similarity"] == 0.95
     assert by_id.loc[str(d.c2), "similarity"] == 0.9         # кандидат своей ниши, не 0.8 из B
     assert pd.isna(by_id.loc[str(d.c3), "similarity"])       # кандидата нет
-    assert by_id.loc[str(d.c1), "unit_price"] == 1500.0
-    assert pd.isna(by_id.loc[str(d.c2), "unit_price"])       # score_details пуст
     assert by_id.loc[str(d.c1), "stratum_id"] == str(d.stratum_id)
     assert pd.isna(by_id.loc[str(d.c2), "stratum_id"])       # создана для ниши - страты нет
     assert by_id.loc[str(d.c3), "sku"] == int(SKUS[3])
@@ -135,7 +132,6 @@ def test_substituted_size_found_by_card_id(real_connector, niche_data):
     by_id = real_connector.get_niche_cards(str(d.ext_a)).set_index("card_id")
     assert by_id.loc[str(d.c4), "sku"] == int(SKUS[4])         # в нише - карточка размера
     assert by_id.loc[str(d.c4), "similarity"] == 0.85          # кандидат с другим sku - по card_id
-    assert by_id.loc[str(d.c4), "unit_price"] == 1200.0
 
 
 def test_card_created_for_other_niche_belongs_by_membership(real_connector, niche_data):
@@ -144,7 +140,6 @@ def test_card_created_for_other_niche_belongs_by_membership(real_connector, nich
     assert cards["card_id"].tolist() == [str(d.c2)]
     assert cards["niche_id"].iloc[0] == str(d.ext_b)
     assert cards["similarity"].iloc[0] == 0.8
-    assert cards["unit_price"].iloc[0] == 990.0
 
 
 def test_unknown_niche_empty(real_connector, niche_data):

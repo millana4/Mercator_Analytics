@@ -186,16 +186,14 @@ def test_analogs(client, auth_headers, core_client, monkeypatch):
     niche_id = _create(client, auth_headers, description="лонгслив для девочки",
                        reference_url=REF_URL).json()["id"]
 
-    # 35 активных с близостью 0.900..0.934 (у #33 цены за штуку нет),
-    # выбывшая с самой высокой и активная без близости
+    # 35 активных с близостью 0.900..0.934, выбывшая с самой высокой и активная без близости
     rows = [{"sku": 1000 + i, "name": f"Лонгслив {i}",
              "url": f"https://www.ozon.ru/product/{1000 + i}/",
-             "status": "active", "similarity": 0.900 + i / 1000,
-             "unit_price": None if i == 33 else 1000.0 + i} for i in range(35)]
+             "status": "active", "similarity": 0.900 + i / 1000} for i in range(35)]
     rows.append({"sku": 2000, "name": "Выбывший", "url": None,
-                 "status": "dropped", "similarity": 0.99, "unit_price": 500.0})
+                 "status": "dropped", "similarity": 0.99})
     rows.append({"sku": 2001, "name": "Без близости", "url": None,
-                 "status": "active", "similarity": None, "unit_price": 500.0})
+                 "status": "active", "similarity": None})
     cards = pd.DataFrame(rows).sample(frac=1, random_state=1)
 
     requested = []
@@ -217,8 +215,7 @@ def test_analogs(client, auth_headers, core_client, monkeypatch):
     assert body[0]["sku"] == "1034" and body[0]["name"] == "Лонгслив 34"
     assert body[0]["url"] == "https://www.ozon.ru/product/1034/"
     assert abs(body[0]["similarity"] - 0.934) < 1e-9
-    assert body[0]["unit_price"] == 1034.0
-    assert body[1]["sku"] == "1033" and body[1]["unit_price"] is None
+    assert "unit_price" not in body[0]
     assert body[-1]["sku"] == "1005"
     assert {a["sku"] for a in body}.isdisjoint({"2000", "2001"})
 

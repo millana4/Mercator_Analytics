@@ -79,7 +79,6 @@ NICHE_CARDS: dict[str, str] = {
     **CARDS,
     "added_at": "datetime64[ns]",     # niche_card.added_at
     "similarity": "Float64",  # niche_candidate.similarity, пусто если кандидата нет
-    "unit_price": "Float64",  # score_details.unit_price - цена аналога за штуку
 }
 
 
