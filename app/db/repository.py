@@ -130,11 +130,17 @@ def latest_run(session: Session, *, category: str, geo: str, marketplace: str,
 
 def list_levels(session: Session, *, category: str, geo: str, marketplace: str,
                 level: str) -> list[dict]:
-    """Какие снепшоты этого уровня посчитаны и по каким алгоритмам есть результат."""
+    """Какие снепшоты этого уровня посчитаны и по каким алгоритмам есть результат.
+    Только действующие алгоритмы: старые расчёты снятых (CUSUM) остаются в базе,
+    но не влияют на список и на готовность ниш."""
+    from app.analytics.service import ALGORITHMS
+    active = [module.ALGORITHM for module in ALGORITHMS]
+
     subq = (select(AnalysisRun.level_key, AnalysisRun.algorithm,
                    func.max(AnalysisRun.grid_point_at).label("last_point"))
             .where(AnalysisRun.category == category, AnalysisRun.geo == geo,
-                   AnalysisRun.marketplace == marketplace, AnalysisRun.level == level)
+                   AnalysisRun.marketplace == marketplace, AnalysisRun.level == level,
+                   AnalysisRun.algorithm.in_(active))
             .group_by(AnalysisRun.level_key, AnalysisRun.algorithm).subquery())
 
     rows = session.execute(
@@ -145,7 +151,8 @@ def list_levels(session: Session, *, category: str, geo: str, marketplace: str,
               & (AnalysisRun.algorithm == subq.c.algorithm)
               & (AnalysisRun.grid_point_at == subq.c.last_point))
         .where(AnalysisRun.category == category, AnalysisRun.geo == geo,
-               AnalysisRun.marketplace == marketplace, AnalysisRun.level == level)
+               AnalysisRun.marketplace == marketplace, AnalysisRun.level == level,
+               AnalysisRun.algorithm.in_(active))
         .order_by(AnalysisRun.level_key, AnalysisRun.algorithm)
     ).all()
 

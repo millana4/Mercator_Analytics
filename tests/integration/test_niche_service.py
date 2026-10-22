@@ -283,6 +283,17 @@ def test_dashboard_only_ready_niches(db_session, monkeypatch):
     assert not ({not_ready.id, no_runs.id, deleted.id} & ids)
 
 
+def test_dashboard_ignores_old_cusum_runs(db_session, monkeypatch):
+    # старый успешный расчёт снятого алгоритма не делает нишу готовой
+    monkeypatch.setattr(policies, "NICHE_VISIBILITY", "all")
+    user = _user(db_session)
+    niche = _niche(db_session, user)
+    _run(db_session, niche, algorithm="CUSUM", sufficient=True)
+    _run(db_session, niche, algorithm="EWMA", sufficient=False)
+    _run(db_session, niche, algorithm="MACD", sufficient=False)
+    assert niche.id not in _dashboard_ids(db_session, user)
+
+
 def test_dashboard_uses_latest_snapshot(db_session, monkeypatch):
     monkeypatch.setattr(policies, "NICHE_VISIBILITY", "all")
     user = _user(db_session)
