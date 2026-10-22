@@ -5,7 +5,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from app.analytics.algorithms import common, cusum, ewma, macd
+from app.analytics.algorithms import common, ewma, macd
 from app.analytics.selection import (Selection, select_for_category, select_for_niche,
                                      select_for_subcategory)
 from app.assignments.models import Assignment
@@ -14,7 +14,7 @@ from app.connectors import schema
 
 logger = logging.getLogger(__name__)
 
-ALGORITHMS = (ewma, macd, cusum)
+ALGORITHMS = (ewma, macd)
 
 
 @dataclass
@@ -56,8 +56,15 @@ def _log_selection(level: str, level_key: str, algorithm: str, sel: Selection) -
                     s.level_key, s.gender, s.needed, s.taken, s.reason)
 
 
+def _log_panel(panel: pd.DataFrame) -> None:
+    """Сводка по регулярной панели: период и доля годных точек (замер за 24 ч с ценой)."""
+    logger.info("Панель: точек сетки=%d, период %s - %s, доля годных точек=%.1f%%",
+                panel["parsed_at"].nunique(), panel["parsed_at"].min(),
+                panel["parsed_at"].max(), panel["is_valid"].astype(bool).mean() * 100)
+
+
 # Колонка сглаженного уровня, по которой строится кривая рынка на графике
-LEVEL_COLUMNS = {"EWMA": "level_smooth_2", "MACD": "ema_fast", "CUSUM": "level_smooth"}
+LEVEL_COLUMNS = {"EWMA": "level_smooth_2", "MACD": "ema_fast"}
 
 
 def _run_one(module, df: pd.DataFrame, *, set_id: str, category: str, level: str,
@@ -115,13 +122,13 @@ def _run_one(module, df: pd.DataFrame, *, set_id: str, category: str, level: str
 # ---------- 1. Уровень категории ----------
 def run_category(assignment: Assignment, *, set_id: str, category: str,
                  strata: pd.DataFrame, cards: pd.DataFrame,
-                 panel: pd.DataFrame) -> list[LevelResult]:
+                 panel: pd.DataFrame, as_of=None) -> list[LevelResult]:
     results = []
     for module in ALGORITHMS:
         p = module.PARAMS
         sel = select_for_category(assignment, strata, cards, panel,
                                   min_points=p.min_points,
-                                  min_cards=policies.MIN_CARDS_CATEGORY)
+                                  min_cards=policies.MIN_CARDS_CATEGORY, as_of=as_of)
         if not sel.sufficient:
             logger.warning("[category/%s] %s: недостаточно данных - %s",
                            category, module.ALGORITHM, sel.insufficient_reason)
@@ -143,7 +150,7 @@ def run_category(assignment: Assignment, *, set_id: str, category: str,
 # ---------- 2. Уровень подкатегории ----------
 def run_subcategories(assignment: Assignment, *, set_id: str, category: str,
                       strata: pd.DataFrame, cards: pd.DataFrame,
-                      panel: pd.DataFrame) -> list[LevelResult]:
+                      panel: pd.DataFrame, as_of=None) -> list[LevelResult]:
     tracked = assignment.tracked_subcategories()
     logger.info("[subcategory] отслеживаемых подкатегорий в задании: %d", len(tracked))
 
@@ -155,7 +162,8 @@ def run_subcategories(assignment: Assignment, *, set_id: str, category: str,
             p = module.PARAMS
             sel = select_for_subcategory(key, strata, cards, panel,
                                          min_points=p.min_points,
-                                         min_cards=policies.MIN_CARDS_SUBCATEGORY)
+                                         min_cards=policies.MIN_CARDS_SUBCATEGORY,
+                                         as_of=as_of)
             if not sel.sufficient:
                 logger.warning("[subcategory/%s] %s: недостаточно данных - %s",
                                label, module.ALGORITHM, sel.insufficient_reason)
@@ -174,11 +182,14 @@ def run_subcategories(assignment: Assignment, *, set_id: str, category: str,
     return results
 
 # ---------- 3. Весь сет целиком ----------
-def run_for_set(connector, assignment: Assignment, set_row: pd.Series) -> list[LevelResult]:
+def run_for_set(connector, assignment: Assignment, set_row: pd.Series,
+                grid_point_at: datetime | None = None) -> list[LevelResult]:
+    """grid_point_at - точка расчёта: сетка панели заканчивается на ней, годность
+    карточек проверяется по ней. None - последняя точка по замерам."""
     set_id, category = set_row["set_id"], set_row["category"]
     logger.info("=" * 70)
-    logger.info("Расчёт сета: %s / %s / %s (set_id=%s)",
-                set_row["marketplace"], category, set_row["geo"], set_id)
+    logger.info("Расчёт сета: %s / %s / %s (set_id=%s), точка расчёта %s",
+                set_row["marketplace"], category, set_row["geo"], set_id, grid_point_at)
 
     from app.etl.regularize import build_regular_panel
 
@@ -188,33 +199,34 @@ def run_for_set(connector, assignment: Assignment, set_row: pd.Series) -> list[L
     logger.info("Страт=%d, карточек active=%d", len(strata), len(skus))
 
     measurements = connector.get_measurements(skus)
-    panel = build_regular_panel(measurements)
-    logger.info("Панель: точек сетки=%d, период %s - %s, доля снятых замеров=%.1f%%",
-                panel["parsed_at"].nunique(), panel["parsed_at"].min(),
-                panel["parsed_at"].max(), panel["is_observed"].mean() * 100)
+    panel = build_regular_panel(measurements, date_to=grid_point_at)
+    _log_panel(panel)
 
     results = run_category(assignment, set_id=set_id, category=category,
-                           strata=strata, cards=cards, panel=panel)
+                           strata=strata, cards=cards, panel=panel, as_of=grid_point_at)
     results += run_subcategories(assignment, set_id=set_id, category=category,
-                                 strata=strata, cards=cards, panel=panel)
+                                 strata=strata, cards=cards, panel=panel, as_of=grid_point_at)
 
     logger.info("Расчёт сета завершён: снепшотов посчитано=%d", len(results))
     return results
 
 
 # ---------- 4. Товарная ниша ----------
-def run_for_niche(connector, niche_row: pd.Series) -> list[LevelResult]:
+def run_for_niche(connector, niche_row: pd.Series,
+                  grid_point_at: datetime | None = None) -> list[LevelResult]:
     """Ниша - отдельный срез: состав из ядра (niche_card), отбор по близости
-    к референсу, те же алгоритмы, что у категорий. set_id и level_key = id ниши."""
+    к референсу, те же алгоритмы, что у категорий. set_id и level_key = id ниши.
+    grid_point_at - точка расчёта, как в run_for_set."""
     niche_id, category = niche_row["niche_id"], niche_row["category"]
     query = niche_row["search_query"]
     label = f"ниши «{query}»" if not pd.isna(query) and query else "ниши"
     target_count = int(niche_row["target_count"])
 
     logger.info("=" * 70)
-    logger.info("Расчёт ниши: %s / %s / %s, запрос «%s», статус в ядре %s (niche_id=%s)",
+    logger.info("Расчёт ниши: %s / %s / %s, запрос «%s», статус в ядре %s (niche_id=%s), "
+                "точка расчёта %s",
                 niche_row["marketplace"], category, niche_row["geo"],
-                query, niche_row["status"], niche_id)
+                query, niche_row["status"], niche_id, grid_point_at)
 
     from app.etl.regularize import build_regular_panel
 
@@ -224,11 +236,9 @@ def run_for_niche(connector, niche_row: pd.Series) -> list[LevelResult]:
 
     measurements = (connector.get_measurements(skus) if skus
                     else schema.empty(schema.MEASUREMENTS))
-    panel = build_regular_panel(measurements)
+    panel = build_regular_panel(measurements, date_to=grid_point_at)
     if not panel.empty:
-        logger.info("Панель: точек сетки=%d, период %s - %s, доля снятых замеров=%.1f%%",
-                    panel["parsed_at"].nunique(), panel["parsed_at"].min(),
-                    panel["parsed_at"].max(), panel["is_observed"].mean() * 100)
+        _log_panel(panel)
 
     # Признаки страты уровню ниши не нужны, а у карточек, созданных для ниши,
     # страты нет вовсе. build_analysis_panel оставит эти колонки пустыми.
@@ -243,7 +253,7 @@ def run_for_niche(connector, niche_row: pd.Series) -> list[LevelResult]:
         else:
             sel = select_for_niche(cards, panel, target_count=target_count,
                                    min_points=p.min_points,
-                                   min_cards=policies.MIN_CARDS_NICHE)
+                                   min_cards=policies.MIN_CARDS_NICHE, as_of=grid_point_at)
         if not sel.sufficient:
             logger.warning("[niche/%s] %s: недостаточно данных - %s",
                            niche_id, module.ALGORITHM, sel.insufficient_reason)

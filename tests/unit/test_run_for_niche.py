@@ -7,7 +7,7 @@ from app.connectors import schema
 
 NICHE_ID = "aaaaaaaa-0000-0000-0000-000000000001"
 START = pd.Timestamp("2026-08-01 00:37")
-N_POINTS = 40   # длиннее порога самого требовательного алгоритма (CUSUM - 31 точка)
+N_POINTS = 40   # длиннее порога самого требовательного алгоритма (MACD - 9 точек)
 
 
 def _card_id(i: int) -> str:
@@ -62,7 +62,7 @@ class FakeConnector:
 
 def test_niche_cards_without_strata_are_calculated():
     results = run_for_niche(FakeConnector(_cards(35), _measurements(35)), _niche_row())
-    assert [r.algorithm for r in results] == ["EWMA", "MACD", "CUSUM"]
+    assert [r.algorithm for r in results] == ["EWMA", "MACD"]
     for r in results:
         assert r.sufficient, r.insufficient_reason
         assert (r.level, r.set_id, r.level_key) == ("niche", NICHE_ID, NICHE_ID)
@@ -73,7 +73,7 @@ def test_niche_cards_without_strata_are_calculated():
 def test_too_few_cards_insufficient_for_all_algorithms():
     n = policies.MIN_CARDS_NICHE - 1
     results = run_for_niche(FakeConnector(_cards(n), _measurements(n)), _niche_row())
-    assert len(results) == 3
+    assert len(results) == 2
     for r in results:
         assert not r.sufficient
         assert f"пригодных карточек {n}" in r.insufficient_reason
@@ -92,7 +92,7 @@ def test_empty_niche_without_query():
     # только что созданная ниша: состава нет, запрос нейросеть ещё не составила
     conn = FakeConnector(schema.empty(schema.NICHE_CARDS), schema.empty(schema.MEASUREMENTS))
     results = run_for_niche(conn, _niche_row(search_query=None))
-    assert len(results) == 3
+    assert len(results) == 2
     assert not any(r.sufficient for r in results)
     assert all("аналитики ниши:" in r.warning for r in results)
 
@@ -110,13 +110,12 @@ def test_points_with_few_cards_do_not_count():
             for k in range(0 if i < n_old else new_from, N_POINTS)]
     measurements = schema.conform(pd.DataFrame(rows), schema.MEASUREMENTS)
 
-    ewma_r, macd_r, cusum_r = run_for_niche(FakeConnector(cards, measurements), _niche_row())
+    ewma_r, macd_r = run_for_niche(FakeConnector(cards, measurements), _niche_row())
 
     # EWMA: срез от 26 карточек есть только в последних 8 точках - кривая с них
     first_full = START + pd.Timedelta(hours=12 * new_from)
     assert ewma_r.sufficient, ewma_r.insufficient_reason
     assert pd.Timestamp(ewma_r.curve["parsed_at"].min()) == first_full
     assert all(pd.Timestamp(t) >= first_full for t in ewma_r.events.get("start_at", []))
-    # MACD и CUSUM: у новых карточек рядов не хватает - неуспешно
+    # MACD: у новых карточек 8 точек при окне 9 - неуспешно
     assert not macd_r.sufficient
-    assert not cusum_r.sufficient

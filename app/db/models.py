@@ -28,7 +28,7 @@ class AnalysisRun(Base):
     # что считали
     level: Mapped[str] = mapped_column(String(16))        # category | subcategory | item
     level_key: Mapped[str] = mapped_column(String(256))   # название среза
-    algorithm: Mapped[str] = mapped_column(String(16))    # EWMA | MACD | CUSUM
+    algorithm: Mapped[str] = mapped_column(String(16))    # EWMA | MACD
 
     # на какой выборке
     computed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

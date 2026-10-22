@@ -33,7 +33,7 @@ def levels(category: str, geo: str, marketplace: str,
 # level=niche: level_key - id ниши (из /api/v1/niches/dashboard)
 @router.get("/snapshot")
 def snapshot(category: str, geo: str, marketplace: str, level_key: str,
-             algorithm: str = Query(..., pattern="^(EWMA|MACD|CUSUM)$"),
+             algorithm: str = Query(..., pattern="^(EWMA|MACD)$"),
              level: str = Query("category", pattern="^(category|subcategory|item|niche)$"),
              session: Session = Depends(get_session)) -> dict:
     """Снепшот целиком: метаданные, события и кривая рынка.
@@ -87,7 +87,7 @@ def snapshot(category: str, geo: str, marketplace: str, level_key: str,
 
 @router.get("/chart.png")
 def chart(category: str, geo: str, marketplace: str, level_key: str,
-          algorithm: str = Query(..., pattern="^(EWMA|MACD|CUSUM)$"),
+          algorithm: str = Query(..., pattern="^(EWMA|MACD)$"),
           level: str = Query("category", pattern="^(category|subcategory|item|niche)$"),
           session: Session = Depends(get_session)) -> Response:
     """PNG для отчёта и отладки. Основной формат для фронта - /snapshot."""

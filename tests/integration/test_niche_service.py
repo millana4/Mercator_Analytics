@@ -272,12 +272,12 @@ def test_dashboard_only_ready_niches(db_session, monkeypatch):
     not_ready = _niche(db_session, user)
     no_runs = _niche(db_session, user)
     deleted = _niche(db_session, user, status=NicheStatus.DELETED)
-    for algorithm in ("EWMA", "MACD", "CUSUM"):
+    for algorithm in ("EWMA", "MACD"):
         _run(db_session, ready, algorithm=algorithm)
         _run(db_session, not_ready, algorithm=algorithm, sufficient=False)
         _run(db_session, deleted, algorithm=algorithm)
     _run(db_session, partly, algorithm="EWMA")
-    _run(db_session, partly, algorithm="CUSUM", sufficient=False)
+    _run(db_session, partly, algorithm="MACD", sufficient=False)
     ids = _dashboard_ids(db_session, user)
     assert ready.id in ids and partly.id in ids
     assert not ({not_ready.id, no_runs.id, deleted.id} & ids)

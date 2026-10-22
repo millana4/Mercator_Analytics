@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from app.analytics.algorithms.common import detect_events, drop_short_series, ewm_smooth
-from app.config.policies import GRID_STEPS_PER_DAY
+from app.config.policies import FALSE_ALARM_MAX, GRID_STEPS_PER_DAY
 
 ALGORITHM = "MACD"
 
@@ -18,7 +18,9 @@ class MacdParams:
     span_signal: int = 3            # сглаживание самой macd_line
     window_days: int = 3            # окно нужно для знака направления и величины
     line_threshold: float = 0.0571  # минимум |macd_line| в момент пересечения
-    market_threshold: float = 0.04  # порог доли участвующих
+    # p0: доля карточек с флагом в спокойное время (медиана по точкам, большее
+    # из направлений; замер 22.10: одежда 0,0116, детская 0,0117)
+    background_rate: float = 0.012
     min_points: int = 9             # разгон медленной EMA
     min_cards: int = 25
     n_bootstrap: int = 1000
@@ -70,7 +72,7 @@ def run(df: pd.DataFrame, *, label: str = "вся категория",
     """min_cards - минимум карточек в срезе точки (порог уровня); по умолчанию p.min_cards."""
     prepared = prepare(df, p)
     events = detect_events(prepared, algorithm=ALGORITHM, label=label,
-                           market_threshold=p.market_threshold,
+                           background_rate=p.background_rate, false_alarm=FALSE_ALARM_MAX,
                            min_cards=p.min_cards if min_cards is None else min_cards,
                            n_bootstrap=p.n_bootstrap, ci_alpha=p.ci_alpha,
                            rng=np.random.default_rng(p.random_seed))

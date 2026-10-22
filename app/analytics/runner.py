@@ -23,12 +23,11 @@ ASSIGNMENT_FILES = {
 }
 
 # Параметры алгоритма, которые сохраняются вместе с расчётом
-from app.analytics.algorithms import cusum, ewma, macd
+from app.analytics.algorithms import ewma, macd
 
 PARAMS_BY_ALGORITHM = {
     ewma.ALGORITHM: ewma.PARAMS,
     macd.ALGORITHM: macd.PARAMS,
-    cusum.ALGORITHM: cusum.PARAMS,
 }
 
 # Ниши в этих статусах ядра не считаются: удалённые и остановленные ошибкой.
@@ -84,7 +83,7 @@ def run_all(grid_point_at: datetime | None = None) -> int:
         if assignment is None:
             continue
         try:
-            results = run_for_set(connector, assignment, row)
+            results = run_for_set(connector, assignment, row, grid_point_at)
         except Exception:
             logger.exception("Расчёт сета %s провалился, продолжаем со следующим",
                              row["set_id"])
@@ -124,7 +123,7 @@ def _run_niches(connector, grid_point_at: datetime) -> int:
     saved = 0
     for _, row in niches.iterrows():
         try:
-            results = run_for_niche(connector, row)
+            results = run_for_niche(connector, row, grid_point_at)
         except Exception:
             logger.exception("Расчёт ниши %s провалился, продолжаем со следующей",
                              row["niche_id"])

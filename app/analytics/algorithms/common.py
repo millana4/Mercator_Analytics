@@ -1,4 +1,6 @@
 # ---------- Общие инструменты ----------
+from functools import lru_cache
+
 import numpy as np
 import pandas as pd
 
@@ -34,8 +36,8 @@ def drop_short_series(df: pd.DataFrame, min_points: int) -> pd.DataFrame:
 
 def valid_points(df: pd.DataFrame, min_cards: int) -> pd.Index:
     """Точки сетки, где в срезе не меньше min_cards карточек. Строка карточки есть
-    в панели с её первого замера (дальше - LOCF), поэтому число строк в точке -
-    это число карточек в срезе; по нему же считается доля участвующих."""
+    в панели с её первого замера (пробелы заполнены предыдущей ценой), поэтому число
+    строк в точке - это число карточек в срезе; по нему же считается порог события."""
     counts = df.groupby("parsed_at")["sku"].nunique()
     return counts.index[counts >= min_cards]
 
@@ -80,12 +82,37 @@ def bootstrap_conditional_mean(values: np.ndarray, flags: np.ndarray, *,
     return point, lo, hi
 
 
-# ---------- 4. Детектор событий: все пороги - аргументы вызова ----------
+# ---------- 4. Порог события: биномиальное правило ----------
+@lru_cache(maxsize=None)
+def event_threshold(n_cards: int, background_rate: float, false_alarm: float) -> int:
+    """Наименьшее число карточек с флагом k, при котором ложная тревога
+    P(X >= k) <= false_alarm, X ~ Bin(n_cards, background_rate).
+
+    background_rate (p0) - доля карточек с флагом в спокойное время, у каждого
+    алгоритма своя. Вероятности считаются последовательно через отношение соседних
+    членов биномиального ряда; при n до тысяч карточек точности float хватает.
+    """
+    if n_cards <= 0 or background_rate <= 0:
+        return 1
+    p = background_rate
+    pmf = (1 - p) ** n_cards          # P(X = 0)
+    cdf = pmf                         # P(X <= i)
+    for i in range(n_cards):
+        if 1 - cdf <= false_alarm:    # P(X >= i + 1)
+            return i + 1
+        pmf *= (n_cards - i) / (i + 1) * p / (1 - p)
+        cdf += pmf
+    return n_cards
+
+
+# ---------- 5. Детектор событий: все пороги - аргументы вызова ----------
 def detect_events(df: pd.DataFrame, *, algorithm: str, label: str,
-                  market_threshold: float, min_cards: int,
+                  background_rate: float, false_alarm: float, min_cards: int,
                   n_bootstrap: int, ci_alpha: float,
                   rng: np.random.Generator) -> pd.DataFrame:
-    """Событие = непрерывный блок точек, где доля карточек с флагом >= порога рынка.
+    """Событие = непрерывный блок точек, где карточек с флагом не меньше порога k.
+    k считается в каждой точке от числа карточек в срезе n (event_threshold):
+    ложная тревога при фоне алгоритма background_rate - не больше false_alarm.
     Точка участвует, только если в срезе не меньше min_cards карточек.
 
     Возвращает ЧИСЛА в лог-единицах и долях, без форматирования - результат
@@ -104,12 +131,14 @@ def detect_events(df: pd.DataFrame, *, algorithm: str, label: str,
         for t, slice_df in df.groupby("parsed_at"):
             flags = slice_df[flag_col]
             participating = slice_df.loc[flags]
+            k_point = event_threshold(int(slice_df["sku"].nunique()), background_rate,
+                                      false_alarm)
             ts_rows.append({
                 "parsed_at": t,
                 "participation_pct": flags.mean(),
                 "magnitude_pct": participating["window_return"].mean() if len(participating) else np.nan,
                 "speed_pct_per_day": participating["velocity_per_day"].mean() if len(participating) else np.nan,
-                "signal_active": t in ok_points and flags.mean() >= market_threshold,
+                "signal_active": t in ok_points and int(flags.sum()) >= k_point,
             })
         ts = pd.DataFrame(ts_rows)
 
@@ -157,7 +186,7 @@ def detect_events(df: pd.DataFrame, *, algorithm: str, label: str,
     return pd.DataFrame(events).sort_values("start_at").reset_index(drop=True)
 
 
-# ---------- 5. Форматирование для чтения глазами ----------
+# ---------- 6. Форматирование для чтения глазами ----------
 DIRECTION_TITLES = {"down": "Снижение цен", "up": "Рост цен"}
 
 
@@ -197,7 +226,7 @@ def format_events(events: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# ---------- 6. Участники события: карточки с флагом внутри окна ----------
+# ---------- 7. Участники события: карточки с флагом внутри окна ----------
 def find_participants(df: pd.DataFrame, direction: str, start_at, end_at,
                       cards: pd.DataFrame) -> list[dict]:
     """Карточки, у которых флаг направления был True хотя бы в одной точке

@@ -3,7 +3,7 @@ import pandas as pd
 
 from app.analytics.selection import select_for_niche
 
-START = pd.Timestamp("2026-08-01 00:37")
+END = pd.Timestamp("2026-08-21 00:37")   # точка расчёта: все ряды заканчиваются в ней
 
 
 def _cards(rows):
@@ -14,16 +14,18 @@ def _cards(rows):
 
 
 def _panel(points: dict[str, int], empty_price: dict[str, int] | None = None):
-    """points: card_id -> число точек сетки подряд.
-    empty_price: card_id -> сколько последних точек без цены (товара не было)."""
+    """points: card_id -> число точек сетки подряд, ряд заканчивается в END.
+    empty_price: card_id -> сколько последних точек «нет в наличии»: как после
+    регуляризации - цена протянута из предыдущей точки, точка негодная."""
     empty_price = empty_price or {}
     rows = []
     for card_id, n in points.items():
         for k in range(n):
             no_price = k >= n - empty_price.get(card_id, 0)
             rows.append({"card_id": card_id,
-                         "parsed_at": START + pd.Timedelta(hours=12 * k),
-                         "card_price": None if no_price else 1000.0})
+                         "parsed_at": END - pd.Timedelta(hours=12 * (n - 1 - k)),
+                         "card_price": 1000.0,
+                         "is_valid": not no_price})
     df = pd.DataFrame(rows)
     df["card_price"] = df["card_price"].astype("float64")
     return df
@@ -53,10 +55,10 @@ def test_missing_similarity_goes_last():
     assert sel.card_ids == ["with_sim"]
 
 
-def test_inactive_short_and_empty_price_points_excluded():
+def test_inactive_short_and_out_of_stock_excluded():
     cards = _cards([("ok", "active", 0.90), ("dropped", "dropped", 0.99),
                     ("short", "active", 0.98), ("gaps", "active", 0.97)])
-    # у gaps 8 точек, но последние 4 без цены - в длину ряда идут только 4
+    # у gaps последние 4 точки «нет в наличии»: в точке расчёта замер без цены
     panel = _panel({"ok": 6, "dropped": 20, "short": 4, "gaps": 8}, empty_price={"gaps": 4})
     sel = select_for_niche(cards, panel, target_count=30, min_points=5, min_cards=1)
     assert sel.card_ids == ["ok"]

@@ -10,6 +10,7 @@ import pandas as pd
 
 from app.assignments.models import Assignment, StratumTask
 from app.config import policies
+from app.etl.regularize import last_grid_points
 
 
 logger = logging.getLogger(__name__)
@@ -132,33 +133,57 @@ class Selection:
         return "\n".join(head)
 
 
+def _insufficient_reason(taken: int, min_cards: int, min_points: int) -> str:
+    return (f"пригодных карточек {taken} при минимуме {min_cards} "
+            f"(свежий замер с ценой и {min_points} точек без пробелов)")
+
+
 # ---------- 3. Пригодность карточки ----------
 def eligible_cards(cards: pd.DataFrame, panel: pd.DataFrame,
-                   min_points: int) -> pd.DataFrame:
-    """Активные карточки с рядом достаточной длины, отсортированные по длине ряда.
-    Порог задаёт вызывающий алгоритм: у EWMA, MACD и CUSUM он разный.
-    Точка с пустой ценой (товара не было) в длину ряда не засчитывается."""
-    valid = panel[panel["card_price"].notna()]
-    stats = valid.groupby("card_id")["parsed_at"].agg(
+                   min_points: int, as_of=None) -> pd.DataFrame:
+    """Активные карточки, годные для алгоритма с рядом от min_points точек.
+
+    Порядок проверки:
+      1. последний замер: в точке расчёта as_of точка годная - замер не старше
+         MAX_MEASUREMENT_AGE_HOURS и с ценой (не «нет в наличии»);
+      2. длина ряда: последние min_points точек сетки до as_of - без пробелов.
+         Окно задаёт алгоритм (у EWMA и MACD оно разное).
+    Пробелы старше окна в панели заполнены предыдущей ценой и годности не мешают.
+    as_of не задан - последняя точка панели. Сортировка - по длине ряда.
+    """
+    active = cards[cards["status"] == "active"]
+    as_of = pd.Timestamp(as_of) if as_of is not None else panel["parsed_at"].max()
+    window = (last_grid_points(as_of, min_points) if pd.notna(as_of)
+              else pd.DatetimeIndex([]))
+
+    valid = panel[panel["is_valid"].astype(bool)]
+    fresh = set(valid.loc[valid["parsed_at"] == as_of, "card_id"])
+    in_window = valid[valid["parsed_at"].isin(window)].groupby("card_id")["parsed_at"].nunique()
+    full_window = set(in_window[in_window == len(window)].index) & fresh
+
+    history = panel[(panel["parsed_at"] <= as_of) & panel["card_price"].notna()]
+    stats = history.groupby("card_id")["parsed_at"].agg(
         n_points="count", first_at="min", last_at="max")
     stats["span_days"] = (stats["last_at"] - stats["first_at"]).dt.total_seconds() / 86400
 
-    out = cards[cards["status"] == "active"].merge(
-        stats, left_on="card_id", right_index=True, how="inner")
-    out = out[out["n_points"] >= min_points]
+    out = active.merge(stats, left_on="card_id", right_index=True, how="inner")
+    out = out[out["card_id"].isin(full_window)]
+    logger.debug("Пригодность (окно %d точек до %s): active=%d, свежий замер с ценой=%d, "
+                 "окно без пробелов=%d", min_points, as_of, len(active),
+                 len(fresh & set(active["card_id"])), len(out))
     return out.sort_values(["span_days", "n_points"], ascending=False)
 
 
 # ---------- 4. Уровень КАТЕГОРИИ: по квотам задания ----------
 def select_for_category(assignment: Assignment, strata: pd.DataFrame,
                         cards: pd.DataFrame, panel: pd.DataFrame, *,
-                        min_points: int, min_cards: int) -> Selection:
+                        min_points: int, min_cards: int, as_of=None) -> Selection:
     """Порядок: считаем доступное -> решаем про урезание -> проверяем гейт -> отбираем.
 
-    min_points задаёт алгоритм (у EWMA, MACD и CUSUM он разный), поэтому короткие
-    ряды отсекаются ДО отбора и доли страт из задания не ломаются позже.
+    min_points задаёт алгоритм (у EWMA и MACD он разный), поэтому негодные ряды
+    отсекаются ДО отбора и доли страт из задания не ломаются позже.
     """
-    pool_all = eligible_cards(cards, panel, min_points)
+    pool_all = eligible_cards(cards, panel, min_points, as_of)
     strata_key = strata.set_index(["gender", "layer", "subcategory", "item"])["stratum_id"]
 
     plan, missing = [], []
@@ -207,8 +232,8 @@ def select_for_category(assignment: Assignment, strata: pd.DataFrame,
     if len(chosen) < min_cards:
         return Selection(card_ids=[], shortfalls=shortfalls, scale_factor=scale,
                          total_quota=total_quota, sufficient=False,
-                         insufficient_reason=(f"пригодных карточек {len(chosen)} при минимуме "
-                                              f"{min_cards} (ряд от {min_points} точек)"))
+                         insufficient_reason=_insufficient_reason(len(chosen), min_cards,
+                                                                  min_points))
 
     return Selection(card_ids=chosen, shortfalls=shortfalls,
                      scale_factor=scale, total_quota=total_quota)
@@ -217,36 +242,36 @@ def select_for_category(assignment: Assignment, strata: pd.DataFrame,
 # ---------- 5. Уровень ПОДКАТЕГОРИИ: топ-N по длине ряда ----------
 def select_for_subcategory(subcategory_key: tuple[str, int, str], strata: pd.DataFrame,
                            cards: pd.DataFrame, panel: pd.DataFrame, *,
-                           min_points: int, min_cards: int) -> Selection:
+                           min_points: int, min_cards: int, as_of=None) -> Selection:
     """subcategory_key = (гендер, слой, название). Квот по стратам здесь нет:
     подкатегория однородна, берём min_cards карточек с самыми длинными рядами."""
     gender, layer, title = subcategory_key
     ids = strata[(strata["gender"] == gender) & (strata["layer"] == layer)
                  & (strata["subcategory"] == title)]["stratum_id"]
 
-    pool = eligible_cards(cards, panel, min_points)
+    pool = eligible_cards(cards, panel, min_points, as_of)
     pool = pool[pool["stratum_id"].isin(set(ids))]
     taken = pool.head(min_cards)["card_id"].tolist()
 
     if len(taken) < min_cards:
         return Selection(card_ids=[], total_quota=min_cards, sufficient=False,
-                         insufficient_reason=(f"пригодных карточек {len(taken)} при минимуме "
-                                              f"{min_cards} (ряд от {min_points} точек)"))
+                         insufficient_reason=_insufficient_reason(len(taken), min_cards,
+                                                                  min_points))
     return Selection(card_ids=taken, total_quota=min_cards)
 
 
 # ---------- 6. Уровень НИШИ: ближайшие к референсу ----------
 def select_for_niche(cards: pd.DataFrame, panel: pd.DataFrame, *, target_count: int,
-                     min_points: int, min_cards: int) -> Selection:
+                     min_points: int, min_cards: int, as_of=None) -> Selection:
     """cards - состав ниши (схема NICHE_CARDS). Пригодные карточки сортируются
     по близости к референсу, при равной близости - по длине ряда; берём не больше
     target_count. Ядро собирает plan_count с запасом на ротацию, в анализ идут ближайшие."""
-    pool = eligible_cards(cards, panel, min_points)
+    pool = eligible_cards(cards, panel, min_points, as_of)
     pool = pool.sort_values("similarity", ascending=False, na_position="last", kind="stable")
     taken = pool.head(target_count)["card_id"].tolist()
 
     if len(taken) < min_cards:
         return Selection(card_ids=[], total_quota=target_count, sufficient=False,
-                         insufficient_reason=(f"пригодных карточек {len(taken)} при минимуме "
-                                              f"{min_cards} (ряд от {min_points} точек)"))
+                         insufficient_reason=_insufficient_reason(len(taken), min_cards,
+                                                                  min_points))
     return Selection(card_ids=taken, total_quota=target_count)
