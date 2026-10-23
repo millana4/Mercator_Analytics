@@ -58,6 +58,13 @@ MEASUREMENTS: dict[str, str] = {
     "parser_id": "string",
 }
 
+# Плитка поисковой выдачи (search_snapshot ClickHouse): только поля для повторяемости.
+SEARCH_SNAPSHOTS: dict[str, str] = {
+    "run_at": "datetime64[ns]",      # плановое время прогона выдачи
+    "stratum_id": "string",
+    "sku": "string",
+}
+
 # Ниша: niche_id = niche.external_id ядра = niche.id аналитики.
 # status - статус обработки в ядре (new ... active, failed, deleted).
 NICHES: dict[str, str] = {

@@ -35,6 +35,34 @@ MAX_MEASUREMENT_AGE_HOURS: int = 24
 # наименьшее k, при котором P(X >= k | n, p0) <= FALSE_ALARM_MAX, X ~ Bin(n, p0).
 FALSE_ALARM_MAX: float = 0.01
 
+# ---------- Анализ поисковой выдачи ----------
+# Сравниваются только суточные снимки SEARCH_DAILY_TIME ровно через SEARCH_GAP_HOURS:
+# за 12 ч выдача меняется меньше, чем за сутки, пары через 12 ч (утренние снимки
+# до 14.10) смешивать с суточными нельзя.
+SEARCH_DAILY_TIME: tuple[int, int] = (18, 37)
+SEARCH_GAP_HOURS: int = 24
+# Минимальная доля общих страт пары снимков: меньше - точки нет.
+SEARCH_MIN_STRATA_SHARE: float = 0.75
+# Индикатор «ниже обычного»: обычная повторяемость - медиана последних SEARCH_REP_WINDOW
+# нормальных дней, разброс - MAD x 1,4826 (не меньше SEARCH_REP_SCALE_FLOOR п.п.),
+# порог - SEARCH_REP_K разбросов. Первые SEARCH_REP_MIN_DAYS дней - разгон.
+SEARCH_REP_WINDOW: int = 7
+SEARCH_REP_MIN_DAYS: int = 4
+SEARCH_REP_K: float = 2.0
+SEARCH_REP_SCALE_FLOOR: float = 2.0
+# Блок «Анализ поисковой выдачи» на дашборде - при стольких точках и больше
+# (одна точка = два суточных снимка через 24 ч с достаточным числом общих страт).
+SEARCH_MIN_POINTS: int = 1
+
+# ---------- Погода к снимкам выдачи ----------
+# Координаты гео сета для Open-Meteo; погода снимка - за WEATHER_WINDOW_HOURS до него.
+GEO_COORDS: dict[str, tuple[float, float]] = {"Санкт-Петербург": (59.9386, 30.3141)}
+WEATHER_WINDOW_HOURS: int = 24
+# Почасовые данные по сегодняшний день; с сервера открыт (api.open-meteo.com закрыт).
+WEATHER_API_URL: str = "https://historical-forecast-api.open-meteo.com/v1/forecast"
+# Сколько последних суток кеша перезапрашивать: свежие данные Open-Meteo уточняет.
+WEATHER_REFRESH_DAYS: int = 3
+
 # Допустимый дефицит выборки от суммарной квоты.
 # Меньше порога - предупреждение в лог, доли считаем соблюдёнными.
 # Больше - все страты урезаются пропорционально, чтобы сохранить репрезентативность выборки.

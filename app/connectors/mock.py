@@ -102,7 +102,24 @@ class MockConnector:
             m = m[m["parsed_at"] < date_to]
         return schema.conform(m, schema.MEASUREMENTS)
 
-    # ---------- 4. Ниши ----------
+    # ---------- 4. Поисковая выдача ----------
+    def get_search_snapshots(self, set_id: str,
+                             date_from: datetime | None = None) -> pd.DataFrame:
+        """Плитки выдачи сета из свежей выгрузки ch_search_*.csv. В старых дампах
+        выгрузки выдачи нет - пусто, а не ошибка."""
+        files = sorted(self.data_dir.glob("ch_search_*.csv"))
+        if not files:
+            return schema.empty(schema.SEARCH_SNAPSHOTS)
+        s = pd.read_csv(files[-1], na_values=["\\N"],
+                        usecols=["run_at", "set_id", "stratum_id", "sku"],
+                        dtype={"set_id": str, "stratum_id": str, "sku": str})
+        s = s[s["set_id"] == str(set_id)].copy()
+        s["run_at"] = pd.to_datetime(s["run_at"], errors="coerce")
+        if date_from is not None:
+            s = s[s["run_at"] >= date_from]
+        return schema.conform(s, schema.SEARCH_SNAPSHOTS)
+
+    # ---------- 5. Ниши ----------
     @cached_property
     def _raw_niches(self) -> dict[str, pd.DataFrame] | None:
         """Таблицы ниш. None - дамп снят до миграций ниш (V7-V11), таблиц в нём нет."""

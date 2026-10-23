@@ -9,7 +9,8 @@ import pandas as pd
 from sqlalchemy import delete, select, func
 from sqlalchemy.orm import Session
 
-from app.db.models import AnalysisEvent, AnalysisRun, MarketCurvePoint, AnalysisEventParticipant
+from app.db.models import (AnalysisEvent, AnalysisRun, AnalysisEventParticipant,
+                           MarketCurvePoint, SearchPoint)
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +105,41 @@ def save_run(session: Session, result, *, marketplace: str, geo: str,
 
 def _f(value) -> float | None:
     return None if pd.isna(value) else float(value)
+
+
+# ---------- Анализ поисковой выдачи ----------
+def save_search_points(session: Session, points: pd.DataFrame, *, set_id: str,
+                       marketplace: str, category: str, geo: str) -> int:
+    """Ряд сета пересчитывается целиком: прежние точки сета удаляются, пишутся новые.
+    points - индикатор (search_dynamics.INDICATOR_COLUMNS) + погода + strata_total."""
+    session.execute(delete(SearchPoint).where(SearchPoint.source_set_id == UUID(str(set_id))))
+    for p in points.itertuples():
+        session.add(SearchPoint(
+            source_set_id=UUID(str(set_id)), marketplace=marketplace, category=category, geo=geo,
+            run_at=p.run_at, prev_run=p.prev_run,
+            strata_n=int(p.strata_n), strata_total=int(p.strata_total),
+            repeat_pct=_f(p.repeat_pct), normal_pct=_f(p.normal_pct),
+            band_low=_f(p.band_low), band_high=_f(p.band_high), z=_f(p.z), status=p.status,
+            temp_mean=_f(p.temp_mean), temp_now=_f(p.temp_now), temp_min=_f(p.temp_min),
+            temp_max=_f(p.temp_max), precip=_f(p.precip),
+        ))
+    session.flush()
+    return len(points)
+
+
+def list_search_points(session: Session, *, category: str, geo: str,
+                       marketplace: str) -> list[dict]:
+    """Точки ряда связки по времени, все статусы - отбор показываемых делает API."""
+    rows = session.scalars(
+        select(SearchPoint).where(SearchPoint.category == category, SearchPoint.geo == geo,
+                                  SearchPoint.marketplace == marketplace)
+        .order_by(SearchPoint.run_at)).all()
+    return [{"run_at": r.run_at, "prev_run": r.prev_run, "strata_n": r.strata_n,
+             "strata_total": r.strata_total, "repeat_pct": r.repeat_pct,
+             "normal_pct": r.normal_pct, "band_low": r.band_low, "band_high": r.band_high,
+             "z": r.z, "status": r.status, "temp_mean": r.temp_mean, "temp_now": r.temp_now,
+             "temp_min": r.temp_min, "temp_max": r.temp_max, "precip": r.precip}
+            for r in rows]
 
 
 # ---------- Чтение результатов для API ----------

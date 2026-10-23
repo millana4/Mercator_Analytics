@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
+from app.analytics.search_service import run_search_for_set
 from app.analytics.service import run_for_niche, run_for_set
 from app.assignments.models import Assignment
 from app.assignments.readers import read_assignment
@@ -104,10 +105,23 @@ def run_all(grid_point_at: datetime | None = None) -> int:
             if policies.DEBUG_CHARTS:
                 _save_debug_charts(results, row, grid_point_at)
 
+    _run_search(connector, sets)
     saved += _run_niches(connector, grid_point_at)
 
     logger.info("РАСЧЁТ ЗАВЕРШЁН: снепшотов сохранено=%d", saved)
     return saved
+
+
+def _run_search(connector, sets: pd.DataFrame) -> None:
+    """Анализ поисковой выдачи по всем сетам. Ряд сета пересчитывается целиком;
+    ошибка одного сета не останавливает расчёт."""
+    for _, row in sets.iterrows():
+        try:
+            with SessionLocal() as session:
+                run_search_for_set(connector, session, row)
+                session.commit()
+        except Exception:
+            logger.exception("Анализ выдачи сета %s провалился, продолжаем", row["set_id"])
 
 
 def _run_niches(connector, grid_point_at: datetime) -> int:

@@ -121,3 +121,54 @@ class AnalysisEventParticipant(Base):
     __table_args__ = (
         UniqueConstraint("event_id", "card_id", name="uq_event_participant"),
     )
+
+
+
+
+class SearchPoint(Base):
+    """Суточный снимок поисковой выдачи сета: повторяемость к снимку на сутки раньше,
+    индикатор и погода. Ряд сета пересчитывается в каждом батче целиком."""
+    __tablename__ = "search_point"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_set_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))
+    marketplace: Mapped[str] = mapped_column(String(64))
+    category: Mapped[str] = mapped_column(String(64))
+    geo: Mapped[str] = mapped_column(String(128))
+
+    run_at: Mapped[datetime] = mapped_column(DateTime)       # суточный снимок
+    prev_run: Mapped[datetime] = mapped_column(DateTime)     # снимок на сутки раньше
+    strata_n: Mapped[int] = mapped_column(Integer)           # общих страт в сравнении
+    strata_total: Mapped[int] = mapped_column(Integer)       # страт в сете
+    repeat_pct: Mapped[float | None] = mapped_column(Float)
+
+    # индикатор: обычная повторяемость, коридор, z, статус
+    # (few_strata | warmup | normal | low | high)
+    normal_pct: Mapped[float | None] = mapped_column(Float)
+    band_low: Mapped[float | None] = mapped_column(Float)
+    band_high: Mapped[float | None] = mapped_column(Float)
+    z: Mapped[float | None] = mapped_column(Float)
+    status: Mapped[str] = mapped_column(String(16))
+
+    # погода за сутки до снимка
+    temp_mean: Mapped[float | None] = mapped_column(Float)
+    temp_now: Mapped[float | None] = mapped_column(Float)
+    temp_min: Mapped[float | None] = mapped_column(Float)
+    temp_max: Mapped[float | None] = mapped_column(Float)
+    precip: Mapped[float | None] = mapped_column(Float)
+
+    computed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("source_set_id", "run_at", name="uq_search_point_run"),
+    )
+
+
+class WeatherHourly(Base):
+    """Почасовая погода по гео (Open-Meteo), местное время. Кеш для погоды снимков."""
+    __tablename__ = "weather_hourly"
+
+    geo: Mapped[str] = mapped_column(String(128), primary_key=True)
+    time: Mapped[datetime] = mapped_column(DateTime, primary_key=True)
+    temp: Mapped[float | None] = mapped_column(Float)        # °C
+    precip: Mapped[float | None] = mapped_column(Float)      # мм за час

@@ -98,13 +98,16 @@ class RealConnector:
         return schema.conform(self._query(SQL_NICHE_CARDS, niche_id=niche_id),
                               schema.NICHE_CARDS)
 
-    def get_measurements(self, skus: list[int], date_from: datetime | None = None,
-                          date_to: datetime | None = None) -> pd.DataFrame:
+    def _ch_client(self):
         s = self.settings
-        client = clickhouse_connect.get_client(
+        return clickhouse_connect.get_client(
             host=s.core_ch_host, port=s.core_ch_port, username=s.core_ch_user,
             password=s.core_ch_password, database=s.core_ch_db,
         )
+
+    def get_measurements(self, skus: list[int], date_from: datetime | None = None,
+                          date_to: datetime | None = None) -> pd.DataFrame:
+        client = self._ch_client()
         where = ["sku IN {skus:Array(Int64)}"]
         params: dict = {"skus": list(skus)}
         if date_from is not None:
@@ -118,3 +121,17 @@ class RealConnector:
                f" FROM measurement WHERE {' AND '.join(where)}")
         df = client.query_df(sql, parameters=params)
         return schema.conform(df, schema.MEASUREMENTS)
+
+    def get_search_snapshots(self, set_id: str,
+                             date_from: datetime | None = None) -> pd.DataFrame:
+        where = ["set_id = {set_id:UUID}"]
+        params: dict = {"set_id": str(set_id)}
+        if date_from is not None:
+            where.append("run_at >= {date_from:DateTime}")
+            params["date_from"] = date_from
+        sql = ("SELECT run_at, toString(stratum_id) AS stratum_id, sku"
+               f" FROM search_snapshot WHERE {' AND '.join(where)}")
+        df = self._ch_client().query_df(sql, parameters=params)
+        if df.empty:
+            return schema.empty(schema.SEARCH_SNAPSHOTS)
+        return schema.conform(df, schema.SEARCH_SNAPSHOTS)

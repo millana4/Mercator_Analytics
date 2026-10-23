@@ -24,6 +24,11 @@ class DataConnector(Protocol):
         date_to: datetime | None = None,
     ) -> pd.DataFrame: ...
 
+    def get_search_snapshots(self, set_id: str,
+                             date_from: datetime | None = None) -> pd.DataFrame:
+        """Плитки поисковой выдачи сета (схема SEARCH_SNAPSHOTS); снимков нет - пусто."""
+        ...
+
     def get_niches(self) -> pd.DataFrame:
         """Ниши ядра во всех статусах. niche_id = external_id ядра = id ниши аналитики."""
         ...
