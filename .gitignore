@@ -11,3 +11,4 @@ venv/
 /data
 debug/
 .env.mock.bak
+logs/
