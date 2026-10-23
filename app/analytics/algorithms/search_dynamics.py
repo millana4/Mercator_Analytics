@@ -18,7 +18,16 @@ STATUS_HIGH = "high"               # повторяемость выше обы�
 REPEAT_COLUMNS = ["run_at", "prev_run", "strata_n", "repeat_pct", "enough_strata"]
 INDICATOR_COLUMNS = ["run_at", "prev_run", "strata_n", "repeat_pct",
                      "normal_pct", "band_low", "band_high", "z", "status"]
-WEATHER_COLUMNS = ["run_at", "temp_mean", "temp_now", "temp_min", "temp_max", "precip"]
+WEATHER_COLUMNS = ["run_at", "temp_mean", "temp_now", "temp_min", "temp_max", "precip",
+                   "cloud_mean", "sky", "precip_kind"]
+
+# Значок погоды суток: небо по облачности, тип осадков по кодам погоды WMO
+SKY_CLEAR, SKY_PARTLY, SKY_CLOUDY = "clear", "partly", "cloudy"
+PRECIP_NONE, PRECIP_RAIN, PRECIP_SNOW, PRECIP_MIXED = "none", "rain", "snow", "mixed"
+# морось, дождь, ледяной дождь, ливни, гроза
+RAIN_CODES = frozenset({51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99})
+# снег, снежные зёрна, снегопад-ливень
+SNOW_CODES = frozenset({71, 73, 75, 77, 85, 86})
 
 
 def daily_snapshots(snapshots: pd.DataFrame) -> pd.DataFrame:
@@ -100,17 +109,50 @@ def repeatability_indicator(rep: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=INDICATOR_COLUMNS)
 
 
+def sky_kind(cloud_mean) -> str | None:
+    """Небо суток по средней облачности, %: ясно, переменная облачность, облачно."""
+    if pd.isna(cloud_mean):
+        return None
+    if cloud_mean < policies.WEATHER_SKY_CLEAR_MAX:
+        return SKY_CLEAR
+    if cloud_mean <= policies.WEATHER_SKY_PARTLY_MAX:
+        return SKY_PARTLY
+    return SKY_CLOUDY
+
+
+def precip_kind(day: pd.DataFrame) -> str:
+    """Осадки суток: меньше WEATHER_PRECIP_MIN_MM - нет; иначе тип по кодам погоды часов
+    с осадками; коды не про осадки - по средней температуре этих часов (<= 0 - снег)."""
+    total = day["precip"].sum()
+    if pd.isna(total) or total < policies.WEATHER_PRECIP_MIN_MM:
+        return PRECIP_NONE
+    wet = day[day["precip"] > 0]
+    codes = {int(c) for c in wet["code"].dropna()} if "code" in wet.columns else set()
+    rain, snow = bool(codes & RAIN_CODES), bool(codes & SNOW_CODES)
+    if rain and snow:
+        return PRECIP_MIXED
+    if snow:
+        return PRECIP_SNOW
+    if rain:
+        return PRECIP_RAIN
+    temp = wet["temp"].mean()
+    return PRECIP_SNOW if pd.notna(temp) and temp <= 0 else PRECIP_RAIN
+
+
 def weather_for_runs(hourly: pd.DataFrame, runs) -> pd.DataFrame:
-    """Погода к каждому снимку: средняя, минимум и максимум температуры и сумма осадков
-    за WEATHER_WINDOW_HOURS до снимка, температура в час снимка.
-    hourly - time (местное время), temp (°C), precip (мм за час)."""
+    """Погода к каждому снимку за WEATHER_WINDOW_HOURS до него: средняя, минимум и максимум
+    температуры, сумма осадков, температура в час снимка, средняя облачность и значок:
+    небо (sky) и тип осадков (precip_kind).
+    hourly - time (местное время), temp (°C), precip (мм за час), cloud (%), code (WMO)."""
     window = pd.Timedelta(hours=policies.WEATHER_WINDOW_HOURS)
+    has_cloud = "cloud" in hourly.columns
     rows = []
     for run_at in runs:
         run_at = pd.Timestamp(run_at)
         day = hourly[(hourly["time"] > run_at - window) & (hourly["time"] <= run_at)]
         now = hourly[hourly["time"] == run_at.floor("h")]
         has_day = len(day) > 0
+        cloud_mean = day["cloud"].mean() if has_day and has_cloud else np.nan
         rows.append({
             "run_at": run_at,
             "temp_mean": day["temp"].mean() if has_day else np.nan,
@@ -118,5 +160,8 @@ def weather_for_runs(hourly: pd.DataFrame, runs) -> pd.DataFrame:
             "temp_min": day["temp"].min() if has_day else np.nan,
             "temp_max": day["temp"].max() if has_day else np.nan,
             "precip": day["precip"].sum() if has_day else np.nan,
+            "cloud_mean": cloud_mean,
+            "sky": sky_kind(cloud_mean),
+            "precip_kind": precip_kind(day) if has_day else None,
         })
     return pd.DataFrame(rows, columns=WEATHER_COLUMNS)

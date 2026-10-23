@@ -62,6 +62,10 @@ WEATHER_WINDOW_HOURS: int = 24
 WEATHER_API_URL: str = "https://historical-forecast-api.open-meteo.com/v1/forecast"
 # Сколько последних суток кеша перезапрашивать: свежие данные Open-Meteo уточняет.
 WEATHER_REFRESH_DAYS: int = 3
+# Значок погоды суток: небо по средней облачности, %; осадки - от суммы за сутки, мм.
+WEATHER_SKY_CLEAR_MAX: float = 25.0     # меньше - ясно (солнце)
+WEATHER_SKY_PARTLY_MAX: float = 70.0    # до этого значения - переменная облачность
+WEATHER_PRECIP_MIN_MM: float = 0.5      # меньше - без осадков на значке
 
 # Допустимый дефицит выборки от суммарной квоты.
 # Меньше порога - предупреждение в лог, доли считаем соблюдёнными.

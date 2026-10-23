@@ -172,3 +172,5 @@ class WeatherHourly(Base):
     time: Mapped[datetime] = mapped_column(DateTime, primary_key=True)
     temp: Mapped[float | None] = mapped_column(Float)        # °C
     precip: Mapped[float | None] = mapped_column(Float)      # мм за час
+    cloud: Mapped[float | None] = mapped_column(Float)       # облачность, %
+    code: Mapped[int | None] = mapped_column(Integer)        # код погоды WMO

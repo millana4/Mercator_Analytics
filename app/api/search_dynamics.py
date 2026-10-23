@@ -14,7 +14,8 @@ from app.db.session import get_session
 
 router = APIRouter(prefix="/api/v1", tags=["search-dynamics"])
 
-WEATHER_FIELDS = ("temp_mean", "temp_now", "temp_min", "temp_max", "precip")
+WEATHER_NUMBERS = ("temp_mean", "temp_now", "temp_min", "temp_max", "precip", "cloud_mean")
+WEATHER_CODES = ("sky", "precip_kind")   # значок погоды: clear|partly|cloudy, none|rain|snow|mixed
 
 
 @router.get("/search-dynamics")
@@ -27,7 +28,7 @@ def search_dynamics(category: str, geo: str, marketplace: str,
     коридор обычной повторяемости, %. ready - точек не меньше SEARCH_MIN_POINTS,
     иначе блок на дашборде не показывается.
     weather - на каждые сутки от первой до последней точки, на момент суточного
-    снимка: и там, где повторяемость не посчитана."""
+    снимка: и там, где повторяемость не посчитана; sky и precip_kind - значок погоды."""
     rows = repo.list_search_points(session, category=category, geo=geo, marketplace=marketplace)
     points = [p for p in rows if p["status"] != STATUS_FEW_STRATA and p["repeat_pct"] is not None]
     return {
@@ -54,9 +55,15 @@ def _daily_weather(session: Session, geo: str, points: list[dict]) -> list[dict]
     hourly = read_weather(session, geo,
                           days[0] - timedelta(hours=policies.WEATHER_WINDOW_HOURS), days[-1])
     weather = weather_for_runs(hourly, days)
-    return [{"run_at": r.run_at.to_pydatetime(), **{k: _f(getattr(r, k)) for k in WEATHER_FIELDS}}
+    return [{"run_at": r.run_at.to_pydatetime(),
+             **{k: _f(getattr(r, k)) for k in WEATHER_NUMBERS},
+             **{k: _s(getattr(r, k)) for k in WEATHER_CODES}}
             for r in weather.itertuples()]
 
 
 def _f(value) -> float | None:
     return None if pd.isna(value) else float(value)
+
+
+def _s(value) -> str | None:
+    return None if value is None or pd.isna(value) else str(value)

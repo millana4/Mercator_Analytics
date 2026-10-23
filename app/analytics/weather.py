@@ -13,30 +13,32 @@ from app.db.models import WeatherHourly
 
 logger = logging.getLogger(__name__)
 
-HOURLY_COLUMNS = ["time", "temp", "precip"]
+# time - местное время; temp °C; precip мм за час; cloud - облачность %; code - код погоды WMO
+HOURLY_COLUMNS = ["time", "temp", "precip", "cloud", "code"]
+FLOAT_COLUMNS = ["temp", "precip", "cloud", "code"]
+OPEN_METEO_FIELDS = {"temp": "temperature_2m", "precip": "precipitation",
+                     "cloud": "cloud_cover", "code": "weather_code"}
 
 
 def parse_hourly(payload: dict) -> pd.DataFrame:
-    """Ответ Open-Meteo -> time, temp, precip. Пропуски в рядах - NaN."""
+    """Ответ Open-Meteo -> HOURLY_COLUMNS. Пропуски в рядах - NaN."""
     hourly = payload.get("hourly") or {}
     times = hourly.get("time") or []
     n = len(times)
-    df = pd.DataFrame({
-        "time": pd.to_datetime(times),
-        "temp": hourly.get("temperature_2m") or [np.nan] * n,
-        "precip": hourly.get("precipitation") or [np.nan] * n,
-    })
-    df[["temp", "precip"]] = df[["temp", "precip"]].astype("float64")
+    df = pd.DataFrame({"time": pd.to_datetime(times)})
+    for col, field in OPEN_METEO_FIELDS.items():
+        df[col] = hourly.get(field) or [np.nan] * n
+    df[FLOAT_COLUMNS] = df[FLOAT_COLUMNS].astype("float64")
     return df[HOURLY_COLUMNS]
 
 
 def fetch_hourly(lat: float, lon: float, start: date, end: date) -> pd.DataFrame:
-    """Почасовые температура и осадки с start по end включительно, московское время.
+    """Почасовая погода с start по end включительно, московское время.
     trust_env=False: прокси из окружения (VPN на ПК) не используется."""
     with httpx.Client(timeout=30, trust_env=False) as client:
         resp = client.get(policies.WEATHER_API_URL, params={
             "latitude": lat, "longitude": lon,
-            "hourly": "temperature_2m,precipitation",
+            "hourly": ",".join(OPEN_METEO_FIELDS.values()),
             "timezone": "Europe/Moscow",
             "start_date": start.isoformat(), "end_date": end.isoformat(),
         })
@@ -80,7 +82,8 @@ def load_weather(session: Session, geo: str, start: datetime, end: datetime,
             WeatherHourly.time >= datetime.combine(day_from, dtime.min),
             WeatherHourly.time < datetime.combine(day_to + timedelta(days=1), dtime.min)))
         session.add_all([WeatherHourly(geo=geo, time=row.time.to_pydatetime(),
-                                       temp=_f(row.temp), precip=_f(row.precip))
+                                       temp=_f(row.temp), precip=_f(row.precip),
+                                       cloud=_f(row.cloud), code=_i(row.code))
                          for row in fresh.itertuples()])
         session.flush()
         logger.info("Погода %s: загружено часов %d (%s - %s)", geo, len(fresh), day_from, day_to)
@@ -91,13 +94,18 @@ def load_weather(session: Session, geo: str, start: datetime, end: datetime,
 def read_weather(session: Session, geo: str, start: datetime, end: datetime) -> pd.DataFrame:
     """Почасовая погода гео за [start, end] из кеша, без обращения к Open-Meteo."""
     rows = session.execute(
-        select(WeatherHourly.time, WeatherHourly.temp, WeatherHourly.precip)
+        select(WeatherHourly.time, WeatherHourly.temp, WeatherHourly.precip,
+               WeatherHourly.cloud, WeatherHourly.code)
         .where(WeatherHourly.geo == geo, WeatherHourly.time >= start, WeatherHourly.time <= end)
         .order_by(WeatherHourly.time)).all()
     df = pd.DataFrame(rows, columns=HOURLY_COLUMNS)
-    df[["temp", "precip"]] = df[["temp", "precip"]].astype("float64")
+    df[FLOAT_COLUMNS] = df[FLOAT_COLUMNS].astype("float64")
     return df
 
 
 def _f(value) -> float | None:
     return None if pd.isna(value) else float(value)
+
+
+def _i(value) -> int | None:
+    return None if pd.isna(value) else int(value)

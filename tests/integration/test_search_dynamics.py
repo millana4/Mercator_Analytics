@@ -21,7 +21,7 @@ def _fake_fetch(calls: list):
         calls.append((start, end))
         times = pd.date_range(datetime.combine(start, time.min),
                               datetime.combine(end, time(23)), freq="h")
-        return pd.DataFrame({"time": times, "temp": 5.0, "precip": 0.1})
+        return pd.DataFrame({"time": times, "temp": 5.0, "precip": 0.1, "cloud": 90.0, "code": 61.0})
     return fetch
 
 
@@ -121,7 +121,8 @@ def test_api_points_alert_and_weather_for_every_day(client, db_session):
                band_high=51.6, z=-5.8),
     ])
     repo.save_search_points(db_session, points, set_id=str(uuid4()), **KIDS)
-    db_session.add_all([WeatherHourly(geo=KIDS["geo"], time=t.to_pydatetime(), temp=5.0, precip=0.1)
+    db_session.add_all([WeatherHourly(geo=KIDS["geo"], time=t.to_pydatetime(), temp=5.0, precip=0.1,
+                                      cloud=90.0, code=71)
                         for t in pd.date_range("2026-10-11 18:00", "2026-10-14 18:00", freq="h")])
     db_session.flush()
 
@@ -137,3 +138,5 @@ def test_api_points_alert_and_weather_for_every_day(client, db_session):
         "2026-10-12T18:37:00", "2026-10-13T18:37:00", "2026-10-14T18:37:00"]
     assert body["weather"][1]["temp_mean"] == 5.0
     assert body["weather"][1]["precip"] == pytest.approx(2.4)
+    assert body["weather"][1]["cloud_mean"] == 90.0
+    assert (body["weather"][1]["sky"], body["weather"][1]["precip_kind"]) == ("cloudy", "snow")

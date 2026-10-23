@@ -122,4 +122,47 @@ def test_weather_day_before_snapshot():
     assert (day["temp_min"], day["temp_max"]) == (19.0, 42.0)
     assert day["temp_now"] == 42.0
     assert day["precip"] == pytest.approx(12.0)
-    assert w.iloc[1][["temp_mean", "temp_now", "precip"]].isna().all()   # погоды нет
+    assert w.iloc[1][["temp_mean", "temp_now", "precip"]].isna().all()  # погоды нет
+
+
+# ---------- Значок погоды: небо и осадки ----------
+RUN = pd.Timestamp("2026-10-10 18:37")
+
+
+def _hourly(cloud: float, precip: float, code: float, temp: float = 5.0) -> pd.DataFrame:
+    """Сутки до RUN: все 24 часа одинаковые."""
+    return pd.DataFrame({"time": pd.date_range("2026-10-09 19:00", periods=24, freq="h"),
+                         "temp": temp, "precip": precip, "cloud": cloud, "code": code})
+
+
+def _icon(hourly: pd.DataFrame) -> tuple:
+    w = weather_for_runs(hourly, [RUN]).iloc[0]
+    return w["sky"], w["precip_kind"]
+
+
+def test_sky_by_cloud_cover():
+    assert _icon(_hourly(cloud=10, precip=0, code=0))[0] == "clear"
+    assert _icon(_hourly(cloud=50, precip=0, code=2))[0] == "partly"
+    assert _icon(_hourly(cloud=70, precip=0, code=2))[0] == "partly"  # граница включительно
+    assert _icon(_hourly(cloud=95, precip=0, code=3))[0] == "cloudy"
+
+
+def test_precip_kind_by_codes():
+    assert _icon(_hourly(cloud=95, precip=0.1, code=61)) == ("cloudy", "rain")  # 2,4 мм
+    assert _icon(_hourly(cloud=95, precip=0.1, code=73)) == ("cloudy", "snow")
+    assert _icon(_hourly(cloud=95, precip=0.01, code=61))[1] == "none"  # 0,24 мм < 0,5
+
+
+def test_precip_mixed_and_fallback_by_temp():
+    mixed = _hourly(cloud=95, precip=0.1, code=61)
+    mixed.loc[12:, "code"] = 71
+    assert _icon(mixed)[1] == "mixed"
+    # код не про осадки (облачно) - тип по температуре часов с осадками
+    assert _icon(_hourly(cloud=95, precip=0.1, code=3, temp=-2.0))[1] == "snow"
+    assert _icon(_hourly(cloud=95, precip=0.1, code=3, temp=3.0))[1] == "rain"
+
+
+def test_icon_without_cloud_data():
+    # кеш без облачности (как старые строки) - неба нет, осадки по температуре
+    hourly = _hourly(cloud=95, precip=0.1, code=3).drop(columns=["cloud", "code"])
+    assert _icon(hourly) == (None, "rain")
