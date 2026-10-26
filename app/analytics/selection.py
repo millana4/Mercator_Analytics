@@ -174,6 +174,16 @@ def eligible_cards(cards: pd.DataFrame, panel: pd.DataFrame,
     return out.sort_values(["span_days", "n_points"], ascending=False)
 
 
+def _deficit_share(plan: list[dict], scale: float) -> float:
+    """Дефицит относительно квот, урезанных коэффициентом scale, по стратам из базы.
+    Страт, которых нет в базе, урезание не исправит - они идут только в предупреждение."""
+    targets = [round_half_up(p["quota"] * scale) for p in plan]
+    total = sum(targets)
+    if total == 0:
+        return 0.0
+    return sum(max(0, t - p["available"]) for t, p in zip(targets, plan)) / total
+
+
 # ---------- 4. Уровень КАТЕГОРИИ: по квотам задания ----------
 def select_for_category(assignment: Assignment, strata: pd.DataFrame,
                         cards: pd.DataFrame, panel: pd.DataFrame, *,
@@ -203,24 +213,24 @@ def select_for_category(assignment: Assignment, strata: pd.DataFrame,
         return Selection([], sufficient=False,
                          insufficient_reason="в задании нет страт с ненулевой квотой")
 
-    available = sum(min(p["quota"], p["available"]) for p in plan)
-    deficit_share = (total_quota - available) / total_quota
-
-    # ---------- 4.1. Нужно ли урезать пропорционально ----------
+    # ---------- 4.1. Урезание: все страты сразу, шагами SCALE_STEP от исходных квот, ----------
+    # пока дефицит относительно урезанных квот больше допустимого
     scale = 1.0
-    if deficit_share > policies.MAX_DEFICIT_SHARE and plan:
-        scale = min(p["available"] / p["quota"] for p in plan)
+    while (_deficit_share(plan, scale) > policies.MAX_DEFICIT_SHARE
+           and scale - policies.SCALE_STEP > 1e-9):
+        scale = round(scale - policies.SCALE_STEP, 4)
 
     # ---------- 4.2. Отбор ----------
     chosen: list[str] = []
     shortfalls: list[Shortfall] = []
     for p in plan:
         task, quota = p["task"], p["quota"]
-        target = min(round_half_up(quota * scale), p["available"])
+        scaled = round_half_up(quota * scale)
+        target = min(scaled, p["available"])
         taken = p["pool"].head(target)["card_id"].tolist()
         chosen.extend(taken)
         if len(taken) < quota:
-            reason = ("пропорциональное урезание" if scale < 1.0 and p["available"] >= quota
+            reason = ("пропорциональное урезание" if scale < 1.0 and p["available"] >= scaled
                       else "дефект задания" if task.is_underprovisioned
                       else "недостаточно карточек")
             shortfalls.append(Shortfall(task.item, task.gender, quota, len(taken), reason))
