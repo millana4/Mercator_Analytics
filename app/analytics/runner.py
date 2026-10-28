@@ -4,8 +4,10 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
+from app.analytics.active_sets import CALC_STATUSES, SHOWN_STATUS
 from app.analytics.search_service import run_search_for_set
 from app.analytics.service import run_for_niche, run_for_set
+from app.assignments.core import assignment_from_strata
 from app.assignments.models import Assignment
 from app.assignments.readers import read_assignment
 from app.config import policies
@@ -16,11 +18,10 @@ from app.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
 
-# Файл задания для каждой категории. Пока лежит на диске рядом с дампами;
-# когда появится загрузка через API, задания переедут в базу.
+# Файл задания - только у категорий, задание которых не ведётся в ядре (одежда).
+# Остальные (детская одежда) берут квоты и «Отслеживать подкатегорию» из страт сета в ядре.
 ASSIGNMENT_FILES = {
     "clothing": "represent_set_clothes.csv",
-    "kids_clothing": "represent_set_kids_clothes.csv",
 }
 
 # Параметры алгоритма, которые сохраняются вместе с расчётом
@@ -51,11 +52,13 @@ def current_grid_point(now: datetime | None = None) -> datetime:
     return yesterday.replace(hour=last.hour, minute=last.minute, second=0, microsecond=0)
 
 
-def load_assignment(category: str, data_dir: str) -> Assignment | None:
+def load_assignment(connector, set_row: pd.Series, data_dir: str) -> Assignment | None:
+    """Задание сета: из файла - для категорий из ASSIGNMENT_FILES, иначе из страт сета в ядре."""
+    category = set_row["category"]
     name = ASSIGNMENT_FILES.get(category)
     if name is None:
-        logger.error("Для категории %s не задан файл задания - расчёт невозможен", category)
-        return None
+        return assignment_from_strata(connector.get_strata(set_row["set_id"]), category,
+                                      source_name=f"ядро, сет {set_row['set_id']}")
     path = f"{data_dir}/{name}"
     try:
         with open(path, "rb") as f:
@@ -77,10 +80,16 @@ def run_all(grid_point_at: datetime | None = None) -> int:
                 grid_point_at, settings.connector_kind)
 
     sets = connector.get_sets()
+    # черновики и выведенные сеты не считаются; сет в сборе считается, но не показывается
+    calc_sets = sets[sets["status"].isin(CALC_STATUSES)]
+    skipped = sets[~sets["status"].isin(CALC_STATUSES)]
+    if len(skipped):
+        logger.info("Сеты без расчёта (статус): %s",
+                    ", ".join(f"{r.set_id} ({r.status})" for r in skipped.itertuples()))
     saved = 0
 
-    for _, row in sets.iterrows():
-        assignment = load_assignment(row["category"], settings.mock_data_dir)
+    for _, row in calc_sets.iterrows():
+        assignment = load_assignment(connector, row, settings.mock_data_dir)
         if assignment is None:
             continue
         try:
@@ -105,7 +114,7 @@ def run_all(grid_point_at: datetime | None = None) -> int:
             if policies.DEBUG_CHARTS:
                 _save_debug_charts(results, row, grid_point_at)
 
-    _run_search(connector, sets)
+    _run_search(connector, sets[sets["status"] == SHOWN_STATUS])
     saved += _run_niches(connector, grid_point_at)
 
     logger.info("РАСЧЁТ ЗАВЕРШЁН: снепшотов сохранено=%d", saved)
@@ -113,8 +122,8 @@ def run_all(grid_point_at: datetime | None = None) -> int:
 
 
 def _run_search(connector, sets: pd.DataFrame) -> None:
-    """Анализ поисковой выдачи по всем сетам. Ряд сета пересчитывается целиком;
-    ошибка одного сета не останавливает расчёт."""
+    """Анализ поисковой выдачи по активным сетам (выдача снимается только по ним).
+    Ряд сета пересчитывается целиком; ошибка одного сета не останавливает расчёт."""
     for _, row in sets.iterrows():
         try:
             with SessionLocal() as session:

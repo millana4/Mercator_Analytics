@@ -10,7 +10,7 @@ from app.connectors import schema
 
 SQL_SETS = """
 SELECT s.id AS set_id, m.title AS marketplace, c.title AS category,
-       g.title AS geo, s.created_at
+       g.title AS geo, s.created_at, s.status, s.activated_at
 FROM set s
 JOIN marketplace m ON m.id = s.marketplace_id
 JOIN category c ON c.id = s.category_id
@@ -28,17 +28,25 @@ WHERE sc.set_id = :set_id
 SQL_STRATA = """
 SELECT st.id AS stratum_id, st.subcategory_id, sc.title AS subcategory,
        sc.attrs->>'segment' AS gender, (sc.attrs->>'layer')::int AS layer,
-       st.item, st.query, st.count, st.is_seasonal, st.base_share
+       st.item, st.query, st.count, st.is_seasonal, st.base_share,
+       st.analysis_quota, sc.tracked
 FROM stratum st
 JOIN subcategory sc ON sc.id = st.subcategory_id
 WHERE sc.set_id = :set_id
 """
 
+# Карточки сета через состав страт (V19 ядра: карточка - товар, членство - stratum_card).
+# Закрытое членство - для этого сета карточка выбыла (dropped, dropped_at - закрытие),
+# даже если товар снова в обходе ради другого сета или ниши.
 SQL_CARDS = """
-SELECT c.id AS card_id, c.stratum_id, c.sku, c.name, c.url, c.collection, c.status,
-       c.created_at, c.dropped_at, c.out_of_stock_since, c.last_measured_at
+SELECT c.id AS card_id, sm.stratum_id, c.sku, c.name, c.url, c.collection,
+       CASE WHEN sm.removed_at IS NOT NULL THEN 'dropped' ELSE c.status END AS status,
+       c.created_at,
+       CASE WHEN sm.removed_at IS NOT NULL THEN sm.removed_at ELSE c.dropped_at END AS dropped_at,
+       c.out_of_stock_since, c.last_measured_at
 FROM card c
-JOIN stratum st ON st.id = c.stratum_id
+JOIN stratum_card sm ON sm.card_id = c.id
+JOIN stratum st ON st.id = sm.stratum_id
 JOIN subcategory sc ON sc.id = st.subcategory_id
 WHERE sc.set_id = :set_id
 """
@@ -52,12 +60,15 @@ JOIN category c ON c.id = n.category_id
 JOIN geo g ON g.id = n.geo_id
 """
 
-# stratum_id::text - у карточек, созданных для ниши, страты нет (NULL);
+# stratum_id - страта открытого членства карточки (V19); у карточек вне страт - NULL;
 # в канон id идут строкой, приведение в SQL делает это явно.
 # Кандидат - по card_id: у подставленного размера sku кандидата остаётся от исходной
 # карточки, а в нише - карточка нужного размера (на неё указывает card_id кандидата).
 SQL_NICHE_CARDS = """
-SELECT n.external_id AS niche_id, c.id AS card_id, c.stratum_id::text AS stratum_id,
+SELECT n.external_id AS niche_id, c.id AS card_id,
+       (SELECT sm.stratum_id::text FROM stratum_card sm
+        WHERE sm.card_id = c.id AND sm.removed_at IS NULL
+        ORDER BY sm.added_at DESC LIMIT 1) AS stratum_id,
        c.sku, c.name, c.url, c.collection, c.status,
        c.created_at, c.dropped_at, c.out_of_stock_since, c.last_measured_at,
        nc.added_at, cand.similarity

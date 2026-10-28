@@ -7,6 +7,8 @@ SETS: dict[str, str] = {
     "category": "string",
     "geo": "string",
     "created_at": "datetime64[ns]",
+    "status": "string",  # draft | collecting | active | retired (V18 ядра)
+    "activated_at": "datetime64[ns]",  # когда сет стал активным; склейка ряда выдачи
 }
 
 SUBCATEGORIES: dict[str, str] = {
@@ -28,6 +30,8 @@ STRATA: dict[str, str] = {
     "count": "Int64",        # план парсинга (stratum.count)
     "is_seasonal": "boolean",
     "base_share": "Float64",
+    "analysis_quota": "Int64",  # квота анализа категории (V18 ядра; в старых дампах пусто)
+    "tracked": "boolean",  # «Отслеживать подкатегорию» (subcategory.tracked)
 }
 
 CARDS: dict[str, str] = {

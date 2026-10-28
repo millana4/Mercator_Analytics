@@ -26,6 +26,7 @@ class LoginResponse(BaseModel):
 
 class UserOut(BaseModel):
     username: str
+    is_admin: bool
 
 
 @router.post("/login")
@@ -55,6 +56,13 @@ def get_current_user(
     return user
 
 
+def require_admin(user: User = Depends(get_current_user)) -> User:
+    """Зависимость админки: только администратор (user.is_admin), иначе 403."""
+    if not user.is_admin:
+        raise HTTPException(403, "Нет прав администратора")
+    return user
+
+
 @router.get("/me")
 def me(user: User = Depends(get_current_user)) -> UserOut:
-    return UserOut(username=user.username)
+    return UserOut(username=user.username, is_admin=bool(user.is_admin))

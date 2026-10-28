@@ -61,11 +61,32 @@ class MockConnector:
                 for t in ("marketplace", "geo", "category", "set",
                           "subcategory", "stratum", "card")}
 
+    @cached_property
+    def _stratum_card(self) -> pd.DataFrame | None:
+        """Состав страт (V19: карточка - товар, членство в стратах - stratum_card).
+        None - дамп до V19: страта карточки в card.stratum_id."""
+        if not has_copy_block(self._dump, "stratum_card"):
+            return None
+        return parse_copy_block(self._dump, "stratum_card")
+
+    def _open_stratum_of(self, card_ids: pd.Series) -> pd.Series:
+        """Страта открытого членства карточки (для состава ниш); у дампа до V19 - card.stratum_id."""
+        sm = self._stratum_card
+        if sm is None:
+            return card_ids.map(self._raw["card"].set_index("id")["stratum_id"])
+        open_sm = sm[sm["removed_at"].isna()].drop_duplicates("card_id", keep="last")
+        return card_ids.map(open_sm.set_index("card_id")["stratum_id"])
+
     def get_sets(self) -> pd.DataFrame:
         s = self._raw["set"].copy()
         for ref in ("marketplace", "geo", "category"):
             titles = self._raw[ref].set_index("id")["title"]
             s[ref] = s[f"{ref}_id"].map(titles)
+        # дамп до V18: статусов нет - все сеты активные, активированы при создании
+        if "status" not in s.columns:
+            s["status"] = "active"
+        if "activated_at" not in s.columns:
+            s["activated_at"] = s["created_at"]
         return schema.conform(s.rename(columns={"id": "set_id"}), schema.SETS)
 
     def get_subcategories(self, set_id: str) -> pd.DataFrame:
@@ -82,12 +103,32 @@ class MockConnector:
         st = st.merge(sub.rename(columns={"title": "subcategory"}),
                       on="subcategory_id", how="inner")
         st["is_seasonal"] = st["is_seasonal"] == "t"
+        # квота анализа и «Отслеживать подкатегорию» - с V18; в старом дампе их нет
+        if "analysis_quota" not in st.columns:
+            st["analysis_quota"] = None
+        st["analysis_quota"] = pd.to_numeric(st["analysis_quota"], errors="coerce")
+        raw_sub = self._raw["subcategory"]
+        if "tracked" in raw_sub.columns:
+            st["tracked"] = st["subcategory_id"].map(raw_sub.set_index("id")["tracked"]) == "t"
+        else:
+            st["tracked"] = False
         return schema.conform(st, schema.STRATA)
 
     def get_cards(self, set_id: str) -> pd.DataFrame:
+        """Карточки сета. V19: через состав страт; закрытое членство - карточка для этого
+        сета выбыла (status dropped, dropped_at - закрытие членства), даже если товар
+        снова в обходе ради другого сета или ниши."""
         strata_ids = set(self.get_strata(set_id)["stratum_id"])
         c = self._raw["card"].rename(columns={"id": "card_id"})
-        c = c[c["stratum_id"].isin(strata_ids)]
+        sm = self._stratum_card
+        if sm is None:
+            c = c[c["stratum_id"].isin(strata_ids)]
+            return schema.conform(c, schema.CARDS)
+        members = sm[sm["stratum_id"].isin(strata_ids)][["card_id", "stratum_id", "removed_at"]]
+        c = c.drop(columns=["stratum_id"], errors="ignore").merge(members, on="card_id", how="inner")
+        closed = c["removed_at"].notna()
+        c.loc[closed, "status"] = "dropped"
+        c.loc[closed, "dropped_at"] = c.loc[closed, "removed_at"]
         return schema.conform(c, schema.CARDS)
 
     # ---------- 3. Замеры ----------
@@ -150,8 +191,10 @@ class MockConnector:
 
         members = raw["niche_card"]
         members = members.loc[members["niche_id"] == core_id, ["card_id", "added_at"]]
-        # у card своя колонка niche_id (ниша-создатель) - к составу ниши она не относится
+        # у card своя колонка niche_id (ниша-создатель) - к составу ниши она не относится;
+        # страта карточки - открытое членство (V19) или card.stratum_id (дамп до V19)
         cards = self._raw["card"].rename(columns={"id": "card_id"}).drop(columns=["niche_id"])
+        cards["stratum_id"] = self._open_stratum_of(cards["card_id"]).values
         cand = raw["niche_candidate"]
         # по card_id: у подставленного размера sku кандидата - исходной карточки,
         # card_id - карточки нужного размера, которая в нише

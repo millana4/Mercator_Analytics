@@ -11,6 +11,7 @@ from app.analytics.selection import (Selection, select_for_category, select_for_
 from app.assignments.models import Assignment
 from app.config import policies
 from app.connectors import schema
+from app.etl.regularize import attach_to_cards
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +199,9 @@ def run_for_set(connector, assignment: Assignment, set_row: pd.Series,
     skus = cards.loc[cards["status"] == "active", "sku"].dropna().astype(int).tolist()
     logger.info("Страт=%d, карточек active=%d", len(strata), len(skus))
 
-    measurements = connector.get_measurements(skus)
+    # вся история товара - к карточке сета по sku (часть замеров слитых при V19 дублей
+    # лежит в ClickHouse под удалённым card_id)
+    measurements = attach_to_cards(connector.get_measurements(skus), cards)
     panel = build_regular_panel(measurements, date_to=grid_point_at)
     _log_panel(panel)
 
@@ -234,7 +237,7 @@ def run_for_niche(connector, niche_row: pd.Series,
     skus = cards.loc[cards["status"] == "active", "sku"].dropna().astype(int).tolist()
     logger.info("Карточек в нише=%d, active=%d", len(cards), len(skus))
 
-    measurements = (connector.get_measurements(skus) if skus
+    measurements = (attach_to_cards(connector.get_measurements(skus), cards) if skus
                     else schema.empty(schema.MEASUREMENTS))
     panel = build_regular_panel(measurements, date_to=grid_point_at)
     if not panel.empty:

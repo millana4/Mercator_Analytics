@@ -24,7 +24,11 @@ def real_connector(core_test_db):
 def test_get_sets_returns_canonical_columns(real_connector):
     df = real_connector.get_sets()
     assert not df.empty
-    assert list(df.columns) == ["set_id", "marketplace", "category", "geo", "created_at"]
+    assert list(df.columns) == ["set_id", "marketplace", "category", "geo", "created_at",
+                                "status", "activated_at"]
+    # V18 ядра: статус сета из допустимых, у активных есть время активации
+    assert set(df["status"]) <= {"draft", "collecting", "active", "retired"}
+    assert df.loc[df["status"] == "active", "activated_at"].notna().all()
 
 
 def test_get_cards_has_url_column(real_connector):
@@ -54,6 +58,12 @@ def test_get_cards_filtered_by_set(real_connector):
     sets = real_connector.get_sets()
     if len(sets) < 2:
         pytest.skip("В дампе меньше двух сетов - не на чем проверить фильтрацию")
-    cards_a = set(real_connector.get_cards(sets["set_id"].iloc[0])["card_id"])
-    cards_b = set(real_connector.get_cards(sets["set_id"].iloc[1])["card_id"])
-    assert cards_a.isdisjoint(cards_b)
+    # V19: товар может входить в несколько сетов (общая карточка), поэтому выборки
+    # могут пересекаться; фильтр проверяется по стратам - каждая карточка пришла
+    # через страту своего сета
+    set_a, set_b = sets["set_id"].iloc[0], sets["set_id"].iloc[1]
+    cards_a = real_connector.get_cards(set_a)
+    cards_b = real_connector.get_cards(set_b)
+    assert set(cards_a["stratum_id"]) <= set(real_connector.get_strata(set_a)["stratum_id"])
+    assert set(cards_b["stratum_id"]) <= set(real_connector.get_strata(set_b)["stratum_id"])
+    assert set(cards_a["card_id"]) != set(cards_b["card_id"])

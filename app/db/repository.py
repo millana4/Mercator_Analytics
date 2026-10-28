@@ -6,7 +6,7 @@ from datetime import datetime
 from uuid import UUID
 
 import pandas as pd
-from sqlalchemy import delete, select, func
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db.models import (AnalysisEvent, AnalysisRun, AnalysisEventParticipant,
@@ -128,12 +128,24 @@ def save_search_points(session: Session, points: pd.DataFrame, *, set_id: str,
 
 
 def list_search_points(session: Session, *, category: str, geo: str,
-                       marketplace: str) -> list[dict]:
-    """Точки ряда связки по времени, все статусы - отбор показываемых делает API."""
-    rows = session.scalars(
-        select(SearchPoint).where(SearchPoint.category == category, SearchPoint.geo == geo,
+                       marketplace: str, windows: list | None = None) -> list[dict]:
+    """Точки ряда связки по времени, все статусы - отбор показываемых делает API.
+
+    windows - склейка ряда по сменам сезонного сета: [(set_id, с, до или None)];
+    точка сета берётся, только если её снимок попал в окно сета. None - все точки связки."""
+    q = select(SearchPoint).where(SearchPoint.category == category, SearchPoint.geo == geo,
                                   SearchPoint.marketplace == marketplace)
-        .order_by(SearchPoint.run_at)).all()
+    if windows is not None:
+        if not windows:
+            return []
+        conditions = []
+        for set_id, start, end in windows:
+            cond = and_(SearchPoint.source_set_id == UUID(str(set_id)), SearchPoint.run_at >= start)
+            if end is not None:
+                cond = and_(cond, SearchPoint.run_at < end)
+            conditions.append(cond)
+        q = q.where(or_(*conditions))
+    rows = session.scalars(q.order_by(SearchPoint.run_at)).all()
     return [{"run_at": r.run_at, "prev_run": r.prev_run, "strata_n": r.strata_n,
              "strata_total": r.strata_total, "repeat_pct": r.repeat_pct,
              "normal_pct": r.normal_pct, "band_low": r.band_low, "band_high": r.band_high,
@@ -152,23 +164,33 @@ def list_catalog(session: Session) -> list[dict]:
     return [{"category": c, "geo": g, "marketplace": m} for c, g, m in rows]
 
 
+def _in_sets(set_ids: list[str] | None) -> tuple:
+    """Условие «расчёт по одному из сетов» для фильтра по активному сету; None - без фильтра."""
+    if set_ids is None:
+        return ()
+    return (AnalysisRun.source_set_id.in_([UUID(str(s)) for s in set_ids]),)
+
+
 def latest_run(session: Session, *, category: str, geo: str, marketplace: str,
-               level: str, level_key: str, algorithm: str) -> AnalysisRun | None:
-    """Самый свежий снепшот по точке сетки."""
+               level: str, level_key: str, algorithm: str,
+               set_ids: list[str] | None = None) -> AnalysisRun | None:
+    """Самый свежий снепшот по точке сетки. set_ids - только расчёты этих сетов
+    (активный сет связки: сет в сборе тоже считается, но не показывается)."""
     return session.scalar(
         select(AnalysisRun).where(
             AnalysisRun.category == category, AnalysisRun.geo == geo,
             AnalysisRun.marketplace == marketplace, AnalysisRun.level == level,
             AnalysisRun.level_key == level_key, AnalysisRun.algorithm == algorithm,
+            *_in_sets(set_ids),
         ).order_by(AnalysisRun.grid_point_at.desc()).limit(1)
     )
 
 
 def list_levels(session: Session, *, category: str, geo: str, marketplace: str,
-                level: str) -> list[dict]:
+                level: str, set_ids: list[str] | None = None) -> list[dict]:
     """Какие снепшоты этого уровня посчитаны и по каким алгоритмам есть результат.
     Только действующие алгоритмы: старые расчёты снятых (CUSUM) остаются в базе,
-    но не влияют на список и на готовность ниш."""
+    но не влияют на список и на готовность ниш. set_ids - только расчёты этих сетов."""
     from app.analytics.service import ALGORITHMS
     active = [module.ALGORITHM for module in ALGORITHMS]
 
@@ -176,7 +198,7 @@ def list_levels(session: Session, *, category: str, geo: str, marketplace: str,
                    func.max(AnalysisRun.grid_point_at).label("last_point"))
             .where(AnalysisRun.category == category, AnalysisRun.geo == geo,
                    AnalysisRun.marketplace == marketplace, AnalysisRun.level == level,
-                   AnalysisRun.algorithm.in_(active))
+                   AnalysisRun.algorithm.in_(active), *_in_sets(set_ids))
             .group_by(AnalysisRun.level_key, AnalysisRun.algorithm).subquery())
 
     rows = session.execute(
@@ -188,7 +210,7 @@ def list_levels(session: Session, *, category: str, geo: str, marketplace: str,
               & (AnalysisRun.grid_point_at == subq.c.last_point))
         .where(AnalysisRun.category == category, AnalysisRun.geo == geo,
                AnalysisRun.marketplace == marketplace, AnalysisRun.level == level,
-               AnalysisRun.algorithm.in_(active))
+               AnalysisRun.algorithm.in_(active), *_in_sets(set_ids))
         .order_by(AnalysisRun.level_key, AnalysisRun.algorithm)
     ).all()
 
@@ -237,3 +259,23 @@ def list_event_participants(session: Session, event_id: str) -> list[dict]:
     ).scalars().all()
     return [{"card_id": str(r.card_id), "sku": r.sku, "name": r.name, "url": r.url}
             for r in rows]
+
+
+# ---------- Готовность сета (для ядра: переключение на новый сезонный сет) ----------
+def set_readiness(session: Session, set_id: str) -> dict:
+    """Последний расчёт уровня категории по каждому действующему алгоритму:
+    {алгоритм: {sufficient, n_cards, grid_point_at, insufficient_reason} или None}."""
+    from app.analytics.service import ALGORITHMS
+    source = UUID(str(set_id))
+    out: dict = {}
+    for module in ALGORITHMS:
+        run = session.scalar(
+            select(AnalysisRun).where(
+                AnalysisRun.source_set_id == source, AnalysisRun.level == "category",
+                AnalysisRun.algorithm == module.ALGORITHM,
+            ).order_by(AnalysisRun.grid_point_at.desc()).limit(1))
+        out[module.ALGORITHM] = None if run is None else {
+            "sufficient": run.sufficient, "n_cards": run.n_cards,
+            "grid_point_at": run.grid_point_at, "insufficient_reason": run.insufficient_reason,
+        }
+    return out

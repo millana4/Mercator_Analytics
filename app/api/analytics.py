@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
+from app.analytics import active_sets
 from app.analytics.algorithms.common import format_events, log_to_pct
 from app.db import repository as repo
 from app.db.session import get_session
@@ -11,6 +12,15 @@ from app.niches.models import Niche
 from app.viz.charts import render_chart
 
 router = APIRouter(prefix="/api/v1", tags=["analytics"])
+
+
+def _shown_sets(category: str, geo: str, marketplace: str, level: str) -> list[str] | None:
+    """Расчёты уровней сета показываются только по активному сету связки: сет в сборе
+    (новый сезонный) тоже считается, но на дашборд не выходит. У ниш фильтра нет:
+    их расчёты привязаны к нише, а не к сету."""
+    if level == "niche":
+        return None
+    return active_sets.active_set_ids(category, geo, marketplace)
 
 
 @router.get("/catalog")
@@ -27,7 +37,8 @@ def levels(category: str, geo: str, marketplace: str,
            session: Session = Depends(get_session)) -> list[dict]:
     """Какие снепшоты этого уровня посчитаны и где данных не хватило."""
     return repo.list_levels(session, category=category, geo=geo,
-                            marketplace=marketplace, level=level)
+                            marketplace=marketplace, level=level,
+                            set_ids=_shown_sets(category, geo, marketplace, level))
 
 
 # level=niche: level_key - id ниши (из /api/v1/niches/dashboard)
@@ -42,7 +53,8 @@ def snapshot(category: str, geo: str, marketplace: str, level_key: str,
     и в процентах (для отображения) - чтобы фронт не занимался пересчётом.
     """
     run = repo.latest_run(session, category=category, geo=geo, marketplace=marketplace,
-                          level=level, level_key=level_key, algorithm=algorithm)
+                          level=level, level_key=level_key, algorithm=algorithm,
+                          set_ids=_shown_sets(category, geo, marketplace, level))
     if run is None:
         raise HTTPException(404, "Снепшот не найден")
 
@@ -92,7 +104,8 @@ def chart(category: str, geo: str, marketplace: str, level_key: str,
           session: Session = Depends(get_session)) -> Response:
     """PNG для отчёта и отладки. Основной формат для фронта - /snapshot."""
     run = repo.latest_run(session, category=category, geo=geo, marketplace=marketplace,
-                          level=level, level_key=level_key, algorithm=algorithm)
+                          level=level, level_key=level_key, algorithm=algorithm,
+                          set_ids=_shown_sets(category, geo, marketplace, level))
     if run is None:
         raise HTTPException(404, "Снепшот не найден")
 

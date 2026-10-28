@@ -19,6 +19,8 @@ class User(Base):
     # Внутренний клиент: больше бесплатных ниш (policies.FREE_NICHES_INTERNAL).
     # По умолчанию true на время тестирования; позже — false и админ-панель.
     is_internal: Mapped[bool] = mapped_column(Boolean, server_default=text("true"), default=True)
+    # Администратор админки задания (один человек): ставится вручную, через интерфейс не выдаётся.
+    is_admin: Mapped[bool] = mapped_column(Boolean, server_default=text("false"), default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 

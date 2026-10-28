@@ -67,12 +67,15 @@ def niche_data(core_test_db):
         cur.execute(niche_sql, (d.niche_c, mp, cat, geo, d.ext_c, REF_URL,
                                 None, "failed", "нейросеть не ответила"))
 
-        card_sql = ("INSERT INTO card (id, stratum_id, niche_id, sku, name, url, status) "
+        # V19: карточка - товар маркетплейса, страта - членство в stratum_card
+        card_sql = ("INSERT INTO card (id, marketplace_id, niche_id, sku, name, url, status) "
                     "VALUES (%s, %s, %s, %s, %s, %s, 'active')")
-        cur.execute(card_sql, (d.c1, d.stratum_id, None, SKUS[1], "Карточка страты", URL))
-        cur.execute(card_sql, (d.c2, None, d.niche_b, SKUS[2], "Создана для B", URL))
-        cur.execute(card_sql, (d.c3, None, d.niche_a, SKUS[3], "Создана для A", URL))
-        cur.execute(card_sql, (d.c4, None, d.niche_a, SKUS[4], "Размер 122 для A", URL))
+        cur.execute(card_sql, (d.c1, mp, None, SKUS[1], "Карточка страты", URL))
+        cur.execute("INSERT INTO stratum_card (stratum_id, card_id) VALUES (%s, %s)",
+                    (d.stratum_id, d.c1))
+        cur.execute(card_sql, (d.c2, mp, d.niche_b, SKUS[2], "Создана для B", URL))
+        cur.execute(card_sql, (d.c3, mp, d.niche_a, SKUS[3], "Создана для A", URL))
+        cur.execute(card_sql, (d.c4, mp, d.niche_a, SKUS[4], "Размер 122 для A", URL))
 
         cur.executemany("INSERT INTO niche_card (niche_id, card_id) VALUES (%s, %s)",
                         [(d.niche_a, d.c1), (d.niche_a, d.c2), (d.niche_a, d.c3),

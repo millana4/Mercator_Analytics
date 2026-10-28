@@ -5,6 +5,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.analytics import active_sets
 from app.analytics.algorithms.search_dynamics import (STATUS_FEW_STRATA, STATUS_LOW,
                                                       weather_for_runs)
 from app.analytics.weather import read_weather
@@ -28,8 +29,12 @@ def search_dynamics(category: str, geo: str, marketplace: str,
     коридор обычной повторяемости, %. ready - точек не меньше SEARCH_MIN_POINTS,
     иначе блок на дашборде не показывается.
     weather - на каждые сутки от первой до последней точки, на момент суточного
-    снимка: и там, где повторяемость не посчитана; sky и precip_kind - значок погоды."""
-    rows = repo.list_search_points(session, category=category, geo=geo, marketplace=marketplace)
+    снимка: и там, где повторяемость не посчитана; sky и precip_kind - значок погоды.
+
+    После смены сезонного сета ряд склеен: точки прежнего сета - до переключения,
+    нового - после (active_sets.search_windows)."""
+    rows = repo.list_search_points(session, category=category, geo=geo, marketplace=marketplace,
+                                   windows=active_sets.search_windows(category, geo, marketplace))
     points = [p for p in rows if p["status"] != STATUS_FEW_STRATA and p["repeat_pct"] is not None]
     return {
         "ready": len(points) >= policies.SEARCH_MIN_POINTS,

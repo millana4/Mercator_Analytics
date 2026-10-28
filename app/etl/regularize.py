@@ -90,3 +90,17 @@ def build_regular_panel(measurements: pd.DataFrame, *, price_col: str = PRICE_CO
     panel = pd.concat(parts, ignore_index=True).rename(columns={"grid_time": "parsed_at"})
     panel = panel[columns]
     return panel.sort_values(["card_id", "parsed_at"]).reset_index(drop=True)
+
+
+def attach_to_cards(measurements: pd.DataFrame, cards: pd.DataFrame) -> pd.DataFrame:
+    """Замеры - к активной карточке среза по sku.
+
+    Карточка - товар (V19 ядра): один sku - один card_id. Но у товаров, слитых из дублей
+    при V19, часть истории в ClickHouse лежит под удалённым card_id. Привязка по sku
+    собирает всю историю товара в ряд карточки среза; замеры чужих sku отбрасываются.
+    Внутри сета и ниши sku уникален."""
+    active = cards[cards["status"] == "active"].dropna(subset=["sku"])
+    card_of_sku = active.drop_duplicates("sku").set_index("sku")["card_id"]
+    out = measurements[measurements["sku"].isin(card_of_sku.index)].copy()
+    out["card_id"] = out["sku"].map(card_of_sku).astype("string")
+    return out.reset_index(drop=True)

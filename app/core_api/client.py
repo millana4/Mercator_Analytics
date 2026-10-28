@@ -50,12 +50,22 @@ class CoreClient:
             return
         raise CoreUnavailable(f"HTTP {response.status_code}: {response.text[:300]}")
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+    def admin_request(self, method: str, path: str, params: dict | None,
+                      content: bytes | None) -> httpx.Response:
+        """Запрос к админскому API ядра для шлюза: метод, параметры и тело (JSON) как есть.
+        Ответ ядра возвращается целиком; ошибка связи - CoreUnavailable."""
+        headers = {"Content-Type": "application/json"} if content else None
+        return self._request(method, path, params=params, content=content,
+                             extra_headers=headers)
+
+    def _request(self, method: str, path: str, extra_headers: dict | None = None,
+                 **kwargs: Any) -> httpx.Response:
         try:
             # trust_env=False: напрямую, без системного прокси
             with httpx.Client(timeout=self._timeout, trust_env=False) as client:
                 return client.request(method, self._base_url + path,
-                                      headers=self._headers, **kwargs)
+                                      headers={**self._headers, **(extra_headers or {})},
+                                      **kwargs)
         except httpx.HTTPError as e:
             raise CoreUnavailable(f"{type(e).__name__}: {e}") from e
 
