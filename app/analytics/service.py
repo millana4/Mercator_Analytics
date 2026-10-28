@@ -198,6 +198,11 @@ def run_for_set(connector, assignment: Assignment, set_row: pd.Series,
     cards = connector.get_cards(set_id)
     skus = cards.loc[cards["status"] == "active", "sku"].dropna().astype(int).tolist()
     logger.info("Страт=%d, карточек active=%d", len(strata), len(skus))
+    if not skus:
+        # сет в сборе до первых подобранных карточек: считать нечего, снепшотов нет
+        # (готовность сета - «ещё не считался»)
+        logger.info("У сета нет активных карточек - расчёт пропущен")
+        return []
 
     # вся история товара - к карточке сета по sku (часть замеров слитых при V19 дублей
     # лежит в ClickHouse под удалённым card_id)
