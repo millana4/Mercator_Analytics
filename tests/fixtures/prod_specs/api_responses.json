@@ -1,0 +1,1308 @@
+{
+ "combo": {
+  "category": "kids_clothing",
+  "geo": "Санкт-Петербург",
+  "marketplace": "ozon"
+ },
+ "strata": {
+  "ready": true,
+  "strata": [
+   {
+    "stratum_id": "4ca4053f-e131-44b5-aff4-f1f8191797df",
+    "label": "Блузы и рубашки, девочки: Рубашка",
+    "subcategory": "Блузы и рубашки, девочки",
+    "n_cards": 11,
+    "clusters": 1,
+    "analyzed_at": "2026-11-09T09:51:11.411360"
+   },
+   {
+    "stratum_id": "0979dd31-67c4-439b-98f3-64aaceaf804c",
+    "label": "Домашняя одежда, девочки: Пижама",
+    "subcategory": "Домашняя одежда, девочки",
+    "n_cards": 20,
+    "clusters": 1,
+    "analyzed_at": "2026-11-09T10:24:40.835782"
+   },
+   {
+    "stratum_id": "c960e3e7-4ac7-4cee-8b86-f2df080088e3",
+    "label": "Рубашки, мальчики: Рубашка",
+    "subcategory": "Рубашки, мальчики",
+    "n_cards": 20,
+    "clusters": 1,
+    "analyzed_at": "2026-11-09T10:24:43.652724"
+   }
+  ]
+ },
+ "details": {
+  "4ca4053f-e131-44b5-aff4-f1f8191797df": {
+   "stratum_id": "4ca4053f-e131-44b5-aff4-f1f8191797df",
+   "label": "Блузы и рубашки, девочки: Рубашка",
+   "category": "kids_clothing",
+   "geo": "Санкт-Петербург",
+   "marketplace": "ozon",
+   "analyzed_at": "2026-11-09T09:51:11.411360",
+   "n_cards": 11,
+   "clusters": [
+    {
+     "title": "Детская школьная рубашка",
+     "n_cards": 11,
+     "summary": "Детская рубашка или блузка для девочки обычно имеет отложной воротник и застёжку на пуговицы, хотя встречаются модели без застёжки или со стойкой. Фасон чаще всего оверсайз или свободный, длина стандартная, рукав длинный. Основной цвет — белый, принт всегда однотонный. Стиль преимущественно школьный, реже деловой или повседневный.",
+     "typical": [
+      "Вид изделия: рубашка, блузка",
+      "Фасон: оверсайз, свободный, прямой, полуприлегающий",
+      "Длина: стандартная, удлиненная, укороченная",
+      "Рукав: длинный, длинный с манжетом",
+      "Воротник и вырез: отложной, стойка, круглый",
+      "Застёжка: пуговицы, без застёжки",
+      "Карманы: накладные, нет, прорезные",
+      "Ткань: хлопок, поплин, микровельвет, полиэстер, смесовая ткань, стрейч-поплин",
+      "Принт: однотонный",
+      "Цвета: белый, голубой, темная мята",
+      "Стиль: школьный, деловой, повседневный"
+     ],
+     "features": [
+      {
+       "field": "garment_type",
+       "values": [
+        {
+         "value": "рубашка",
+         "count": 9
+        },
+        {
+         "value": "блузка",
+         "count": 2
+        }
+       ]
+      },
+      {
+       "field": "silhouette",
+       "values": [
+        {
+         "value": "оверсайз",
+         "count": 7
+        },
+        {
+         "value": "свободный",
+         "count": 2
+        },
+        {
+         "value": "полуприлегающий",
+         "count": 1
+        },
+        {
+         "value": "прямой",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "length",
+       "values": [
+        {
+         "value": "стандартная",
+         "count": 9
+        },
+        {
+         "value": "удлиненная",
+         "count": 1
+        },
+        {
+         "value": "укороченная",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "sleeve",
+       "values": [
+        {
+         "value": "длинный",
+         "count": 9
+        },
+        {
+         "value": "длинный с манжетом",
+         "count": 2
+        }
+       ]
+      },
+      {
+       "field": "neckline",
+       "values": [
+        {
+         "value": "отложной",
+         "count": 9
+        },
+        {
+         "value": "круглый",
+         "count": 1
+        },
+        {
+         "value": "стойка",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "closure",
+       "values": [
+        {
+         "value": "пуговицы",
+         "count": 10
+        },
+        {
+         "value": "без застёжки",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "hardware",
+       "values": [
+        {
+         "value": "заклёпки",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "decor",
+       "values": [
+        {
+         "value": "манжеты",
+         "count": 2
+        },
+        {
+         "value": "бант",
+         "count": 1
+        },
+        {
+         "value": "воротник",
+         "count": 1
+        },
+        {
+         "value": "декоративные пуговицы",
+         "count": 1
+        },
+        {
+         "value": "карманы",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "pockets",
+       "values": [
+        {
+         "value": "накладные",
+         "count": 5
+        },
+        {
+         "value": "нет",
+         "count": 5
+        },
+        {
+         "value": "прорезные",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "fabric",
+       "values": [
+        {
+         "value": "хлопок",
+         "count": 5
+        },
+        {
+         "value": "поплин",
+         "count": 2
+        },
+        {
+         "value": "микровельвет",
+         "count": 1
+        },
+        {
+         "value": "полиэстер",
+         "count": 1
+        },
+        {
+         "value": "смесовая ткань",
+         "count": 1
+        },
+        {
+         "value": "стрейч-поплин",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "print",
+       "values": [
+        {
+         "value": "однотонный",
+         "count": 11
+        }
+       ]
+      },
+      {
+       "field": "colors",
+       "values": [
+        {
+         "value": "белый",
+         "count": 9
+        },
+        {
+         "value": "голубой",
+         "count": 1
+        },
+        {
+         "value": "темная мята",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "style",
+       "values": [
+        {
+         "value": "школьный",
+         "count": 7
+        },
+        {
+         "value": "деловой",
+         "count": 2
+        },
+        {
+         "value": "повседневный",
+         "count": 2
+        }
+       ]
+      },
+      {
+       "field": "extra",
+       "values": [
+        {
+         "value": "ветрозащита",
+         "count": 1
+        },
+        {
+         "value": "манжеты",
+         "count": 1
+        },
+        {
+         "value": "удлиненная спинка",
+         "count": 1
+        }
+       ]
+      }
+     ],
+     "cards": [
+      {
+       "sku": 4061780499,
+       "name": "Рубашка Рубашка детская слим",
+       "url": "https://www.ozon.ru/product/rubashka-rubashka-detskaya-slim-4061780499/"
+      },
+      {
+       "sku": 4113307868,
+       "name": "Рубашка Adeleda Fashion",
+       "url": "https://www.ozon.ru/product/rubashka-adeleda-fashion-4113307868/"
+      },
+      {
+       "sku": 3849758352,
+       "name": "Рубашка Junion школьная прямая для девочек из хлопкового поплина, Яндекс Фабрика",
+       "url": "https://www.ozon.ru/product/rubashka-junion-shkolnaya-pryamaya-dlya-devochek-iz-hlopkovogo-poplina-yandeks-fabrika-3849758352/"
+      },
+      {
+       "sku": 4976422032,
+       "name": "Рубашка Elaria Fam",
+       "url": "https://www.ozon.ru/product/rubashka-elaria-fam-4976422032/"
+      },
+      {
+       "sku": 4903516292,
+       "name": "Блузка TMK для девочки школьная классическая 116-164",
+       "url": "https://www.ozon.ru/product/bluzka-tmk-dlya-devochki-shkolnaya-klassicheskaya-116-164-4903516292/"
+      },
+      {
+       "sku": 4529291869,
+       "name": "Рубашка рубаха",
+       "url": "https://www.ozon.ru/product/rubashka-rubaha-4529291869/"
+      },
+      {
+       "sku": 5066275318,
+       "name": "Рубашка Happyfox школьная для детей",
+       "url": "https://www.ozon.ru/product/rubashka-happyfox-shkolnaya-dlya-detey-5066275318/"
+      },
+      {
+       "sku": 5362041605,
+       "name": "Рубашка",
+       "url": "https://www.ozon.ru/product/rubashka-5362041605/"
+      },
+      {
+       "sku": 2653148688,
+       "name": "Рубашка NORTH DOT",
+       "url": "https://www.ozon.ru/product/rubashka-north-dot-2653148688/"
+      },
+      {
+       "sku": 5328553795,
+       "name": "Рубашка Bonito kids Рубашка",
+       "url": "https://www.ozon.ru/product/rubashka-bonito-kids-rubashka-5328553795/"
+      },
+      {
+       "sku": 5446069011,
+       "name": "Блузка",
+       "url": "https://www.ozon.ru/product/bluzka-5446069011/"
+      }
+     ]
+    }
+   ],
+   "other_cards": []
+  },
+  "0979dd31-67c4-439b-98f3-64aaceaf804c": {
+   "stratum_id": "0979dd31-67c4-439b-98f3-64aaceaf804c",
+   "label": "Домашняя одежда, девочки: Пижама",
+   "category": "kids_clothing",
+   "geo": "Санкт-Петербург",
+   "marketplace": "ozon",
+   "analyzed_at": "2026-11-09T10:24:40.835782",
+   "n_cards": 20,
+   "clusters": [
+    {
+     "title": "Детская пижама для девочки",
+     "n_cards": 20,
+     "summary": "Хлопковая пижама для девочки обычно свободного кроя со стандартной длиной брюк. Чаще всего комплект включает лонгслив с длинным рукавом и круглым вырезом, застегивающийся без пуговиц. Типичные цвета — розовый, белый и бежевый, часто с принтами в виде сердец, животных или мультяшных персонажей. Стиль преимущественно домашний или кэжуал.",
+     "typical": [
+      "Фасон: свободный",
+      "Длина: стандартная",
+      "Рукав: длинный",
+      "Воротник и вырез: круглый",
+      "Застёжка: без застёжки",
+      "Карманы: нет",
+      "Ткань: хлопок",
+      "Цвета: розовый, белый, бежевый"
+     ],
+     "features": [
+      {
+       "field": "garment_type",
+       "values": [
+        {
+         "value": "пижама",
+         "count": 20
+        }
+       ]
+      },
+      {
+       "field": "silhouette",
+       "values": [
+        {
+         "value": "свободный",
+         "count": 16
+        },
+        {
+         "value": "оверсайз",
+         "count": 1
+        },
+        {
+         "value": "полуприлегающий",
+         "count": 1
+        },
+        {
+         "value": "полуприталенный",
+         "count": 1
+        },
+        {
+         "value": "прямой",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "length",
+       "values": [
+        {
+         "value": "стандартная",
+         "count": 19
+        },
+        {
+         "value": "короткий",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "sleeve",
+       "values": [
+        {
+         "value": "длинный",
+         "count": 15
+        },
+        {
+         "value": "короткий",
+         "count": 4
+        },
+        {
+         "value": "без рукавов",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "neckline",
+       "values": [
+        {
+         "value": "круглый",
+         "count": 14
+        },
+        {
+         "value": "v-образный",
+         "count": 3
+        },
+        {
+         "value": "отложной",
+         "count": 3
+        }
+       ]
+      },
+      {
+       "field": "closure",
+       "values": [
+        {
+         "value": "без застёжки",
+         "count": 11
+        },
+        {
+         "value": "резинка",
+         "count": 5
+        },
+        {
+         "value": "пуговицы",
+         "count": 4
+        }
+       ]
+      },
+      {
+       "field": "decor",
+       "values": [
+        {
+         "value": "манжеты",
+         "count": 7
+        },
+        {
+         "value": "рюши",
+         "count": 3
+        },
+        {
+         "value": "бант",
+         "count": 1
+        },
+        {
+         "value": "банты",
+         "count": 1
+        },
+        {
+         "value": "волнистая обработка краёв",
+         "count": 1
+        },
+        {
+         "value": "вышивка",
+         "count": 1
+        },
+        {
+         "value": "декоративные пуговицы",
+         "count": 1
+        },
+        {
+         "value": "карманы",
+         "count": 1
+        },
+        {
+         "value": "контрастный кант",
+         "count": 1
+        },
+        {
+         "value": "принт",
+         "count": 1
+        },
+        {
+         "value": "принт с животными",
+         "count": 1
+        },
+        {
+         "value": "складки",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "pockets",
+       "values": [
+        {
+         "value": "нет",
+         "count": 18
+        },
+        {
+         "value": "прорезные",
+         "count": 2
+        }
+       ]
+      },
+      {
+       "field": "fabric",
+       "values": [
+        {
+         "value": "хлопок",
+         "count": 10
+        },
+        {
+         "value": "трикотаж",
+         "count": 2
+        },
+        {
+         "value": "атлас",
+         "count": 1
+        },
+        {
+         "value": "коралловый флис",
+         "count": 1
+        },
+        {
+         "value": "кулирная гладь",
+         "count": 1
+        },
+        {
+         "value": "рибана",
+         "count": 1
+        },
+        {
+         "value": "трикотаж в рубчик",
+         "count": 1
+        },
+        {
+         "value": "футер с начесом",
+         "count": 1
+        },
+        {
+         "value": "хлопок в рубчик",
+         "count": 1
+        },
+        {
+         "value": "хлопок с начёсом",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "print",
+       "values": [
+        {
+         "value": "сердца",
+         "count": 3
+        },
+        {
+         "value": "мультяшный",
+         "count": 2
+        },
+        {
+         "value": "персонаж",
+         "count": 2
+        },
+        {
+         "value": "анималистический",
+         "count": 1
+        },
+        {
+         "value": "единорог",
+         "count": 1
+        },
+        {
+         "value": "капибара",
+         "count": 1
+        },
+        {
+         "value": "клетка, принт капибары",
+         "count": 1
+        },
+        {
+         "value": "леопард",
+         "count": 1
+        },
+        {
+         "value": "леопардовый с сердцами",
+         "count": 1
+        },
+        {
+         "value": "надписи, банты",
+         "count": 1
+        },
+        {
+         "value": "однотонный",
+         "count": 1
+        },
+        {
+         "value": "полоска",
+         "count": 1
+        },
+        {
+         "value": "принт с животными",
+         "count": 1
+        },
+        {
+         "value": "пятнистый",
+         "count": 1
+        },
+        {
+         "value": "радуга",
+         "count": 1
+        },
+        {
+         "value": "сердечки",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "colors",
+       "values": [
+        {
+         "value": "розовый",
+         "count": 7
+        },
+        {
+         "value": "белый",
+         "count": 5
+        },
+        {
+         "value": "бежевый",
+         "count": 4
+        },
+        {
+         "value": "коричневый",
+         "count": 3
+        },
+        {
+         "value": "красный",
+         "count": 2
+        },
+        {
+         "value": "молочный",
+         "count": 2
+        },
+        {
+         "value": "фиолетовый",
+         "count": 2
+        },
+        {
+         "value": "экрю",
+         "count": 2
+        },
+        {
+         "value": "бирюзовый",
+         "count": 1
+        },
+        {
+         "value": "бордовый",
+         "count": 1
+        },
+        {
+         "value": "жёлтый",
+         "count": 1
+        },
+        {
+         "value": "коралловый",
+         "count": 1
+        },
+        {
+         "value": "светло-молочный",
+         "count": 1
+        },
+        {
+         "value": "серый",
+         "count": 1
+        },
+        {
+         "value": "синий",
+         "count": 1
+        },
+        {
+         "value": "черный",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "style",
+       "values": [
+        {
+         "value": "домашний",
+         "count": 9
+        },
+        {
+         "value": "кэжуал",
+         "count": 9
+        },
+        {
+         "value": "детский",
+         "count": 1
+        },
+        {
+         "value": "повседневный",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "extra",
+       "values": [
+        {
+         "value": "особенности",
+         "count": 2
+        },
+        {
+         "value": "рисунок",
+         "count": 2
+        },
+        {
+         "value": "состав",
+         "count": 2
+        },
+        {
+         "value": "декоративная отстрочка",
+         "count": 1
+        },
+        {
+         "value": "комплект",
+         "count": 1
+        },
+        {
+         "value": "манжеты",
+         "count": 1
+        },
+        {
+         "value": "материал",
+         "count": 1
+        },
+        {
+         "value": "пояс",
+         "count": 1
+        },
+        {
+         "value": "принт_описание",
+         "count": 1
+        },
+        {
+         "value": "фактура",
+         "count": 1
+        }
+       ]
+      }
+     ],
+     "cards": [
+      {
+       "sku": 4833563392,
+       "name": "Пижама AVKkids для девочек",
+       "url": "https://www.ozon.ru/product/pizhama-avkkids-dlya-devochek-4833563392/"
+      },
+      {
+       "sku": 3011922664,
+       "name": "Пижама ГАМ WB1320-19_",
+       "url": "https://www.ozon.ru/product/pizhama-gam-wb1320-19-3011922664/"
+      },
+      {
+       "sku": 4129550382,
+       "name": "Пижама ГАМ",
+       "url": "https://www.ozon.ru/product/pizhama-gam-4129550382/"
+      },
+      {
+       "sku": 5279452052,
+       "name": "Пижама SOVAlina Домашний костюм для девочки со штанами",
+       "url": "https://www.ozon.ru/product/pizhama-sovalina-domashniy-kostyum-dlya-devochki-so-shtanami-5279452052/"
+      },
+      {
+       "sku": 4497657953,
+       "name": "Пижама Компания 2Т 1435/",
+       "url": "https://www.ozon.ru/product/pizhama-kompaniya-2t-1435-4497657953/"
+      },
+      {
+       "sku": 1665285576,
+       "name": "Пижама  для девочки стиль Pinterest , Отличный подарок на День рождение и Новый год!",
+       "url": "https://www.ozon.ru/product/pizhama-dlya-devochki-stil-pinterest-otlichnyy-podarok-na-den-rozhdenie-i-novyy-god-1665285576/"
+      },
+      {
+       "sku": 3882743484,
+       "name": "Пижама Vulpes с единорогом",
+       "url": "https://www.ozon.ru/product/pizhama-vulpes-s-edinorogom-3882743484/"
+      },
+      {
+       "sku": 3882746953,
+       "name": "Пижама Vulpes с рюшами",
+       "url": "https://www.ozon.ru/product/pizhama-vulpes-s-ryushami-3882746953/"
+      },
+      {
+       "sku": 3883718975,
+       "name": "Пижама Vulpes с бантиками",
+       "url": "https://www.ozon.ru/product/pizhama-vulpes-s-bantikami-3883718975/"
+      },
+      {
+       "sku": 3885113671,
+       "name": "Пижама Vulpes для девочки с рубашкой",
+       "url": "https://www.ozon.ru/product/pizhama-vulpes-dlya-devochki-s-rubashkoy-3885113671/"
+      },
+      {
+       "sku": 1313929530,
+       "name": "Пижама IVDT37 Пижама для девочки",
+       "url": "https://www.ozon.ru/product/pizhama-ivdt37-pizhama-dlya-devochki-1313929530/"
+      },
+      {
+       "sku": 3248268544,
+       "name": "Пижама Пижамная вечеринка",
+       "url": "https://www.ozon.ru/product/pizhama-pizhamnaya-vecherinka-3248268544/"
+      },
+      {
+       "sku": 2698514296,
+       "name": "Пижама ЛюЛюЛю",
+       "url": "https://www.ozon.ru/product/pizhama-lyulyulyu-2698514296/"
+      },
+      {
+       "sku": 3944605369,
+       "name": "Пижама Mark Formelle детская со штанами и футболкой хлопок",
+       "url": "https://www.ozon.ru/product/pizhama-mark-formelle-detskaya-so-shtanami-i-futbolkoy-hlopok-3944605369/"
+      },
+      {
+       "sku": 5104129496,
+       "name": "Пижама Feabrate пижама для девочки",
+       "url": "https://www.ozon.ru/product/pizhama-feabrate-pizhama-dlya-devochki-5104129496/"
+      },
+      {
+       "sku": 2979838183,
+       "name": "Пижама MIKIVIKI",
+       "url": "https://www.ozon.ru/product/pizhama-mikiviki-2979838183/"
+      },
+      {
+       "sku": 5314849221,
+       "name": "Комплект одежды Winkid пижама для девочки, лонгслив и брюки",
+       "url": "https://www.ozon.ru/product/komplekt-odezhdy-winkid-pizhama-dlya-devochki-longsliv-i-bryuki-5314849221/"
+      },
+      {
+       "sku": 2885050546,
+       "name": "Пижама Bonito kids пижама для девочки",
+       "url": "https://www.ozon.ru/product/pizhama-bonito-kids-pizhama-dlya-devochki-2885050546/"
+      },
+      {
+       "sku": 2825334714,
+       "name": "Пижама Rommel Пижама",
+       "url": "https://www.ozon.ru/product/pizhama-rommel-pizhama-2825334714/"
+      },
+      {
+       "sku": 1413533600,
+       "name": "Пижама Rommel Пижама",
+       "url": "https://www.ozon.ru/product/pizhama-rommel-pizhama-1413533600/"
+      }
+     ]
+    }
+   ],
+   "other_cards": []
+  },
+  "c960e3e7-4ac7-4cee-8b86-f2df080088e3": {
+   "stratum_id": "c960e3e7-4ac7-4cee-8b86-f2df080088e3",
+   "label": "Рубашки, мальчики: Рубашка",
+   "category": "kids_clothing",
+   "geo": "Санкт-Петербург",
+   "marketplace": "ozon",
+   "analyzed_at": "2026-11-09T10:24:43.652724",
+   "n_cards": 20,
+   "clusters": [
+    {
+     "title": "Мальчиковая школьная рубашка",
+     "n_cards": 20,
+     "summary": "Детская рубашка для мальчика обычно имеет прямой фасон и стандартную длину. Чаще всего изделие оснащено отложным воротником и застёжкой на пуговицах или кнопках. Рукав может быть как длинным, так и коротким, при этом длинные рукава встречаются чаще. Основной цвет — белый или голубой, принт преимущественно однотонный.",
+     "typical": [
+      "Фасон: прямой",
+      "Длина: стандартная",
+      "Воротник и вырез: отложной",
+      "Застёжка: пуговицы",
+      "Принт: однотонный",
+      "Цвета: белый",
+      "Рукав: длинный"
+     ],
+     "features": [
+      {
+       "field": "garment_type",
+       "values": [
+        {
+         "value": "рубашка",
+         "count": 20
+        }
+       ]
+      },
+      {
+       "field": "silhouette",
+       "values": [
+        {
+         "value": "прямой",
+         "count": 17
+        },
+        {
+         "value": "приталенный",
+         "count": 2
+        },
+        {
+         "value": "полуприталенный",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "length",
+       "values": [
+        {
+         "value": "стандартная",
+         "count": 20
+        }
+       ]
+      },
+      {
+       "field": "sleeve",
+       "values": [
+        {
+         "value": "длинный",
+         "count": 12
+        },
+        {
+         "value": "длинный с манжетом",
+         "count": 5
+        },
+        {
+         "value": "короткий",
+         "count": 3
+        }
+       ]
+      },
+      {
+       "field": "neckline",
+       "values": [
+        {
+         "value": "отложной",
+         "count": 18
+        },
+        {
+         "value": "стойка",
+         "count": 2
+        }
+       ]
+      },
+      {
+       "field": "closure",
+       "values": [
+        {
+         "value": "пуговицы",
+         "count": 14
+        },
+        {
+         "value": "кнопки",
+         "count": 5
+        },
+        {
+         "value": "завязки",
+         "count": 1
+        },
+        {
+         "value": "молния",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "decor",
+       "values": [
+        {
+         "value": "манжеты",
+         "count": 4
+        },
+        {
+         "value": "вышивка",
+         "count": 2
+        },
+        {
+         "value": "воротник",
+         "count": 1
+        },
+        {
+         "value": "декоративная отстрочка",
+         "count": 1
+        },
+        {
+         "value": "кружево",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "pockets",
+       "values": [
+        {
+         "value": "нет",
+         "count": 17
+        },
+        {
+         "value": "накладные",
+         "count": 2
+        },
+        {
+         "value": "нагрудный",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "fabric",
+       "values": [
+        {
+         "value": "хлопок",
+         "count": 11
+        },
+        {
+         "value": "поплин",
+         "count": 2
+        },
+        {
+         "value": "интерлок",
+         "count": 1
+        },
+        {
+         "value": "муслин",
+         "count": 1
+        },
+        {
+         "value": "хлопок лен",
+         "count": 1
+        },
+        {
+         "value": "хлопок модал",
+         "count": 1
+        },
+        {
+         "value": "хлопок с модалом",
+         "count": 1
+        },
+        {
+         "value": "хлопок с полиэстером и лайкрой",
+         "count": 1
+        },
+        {
+         "value": "хлопок, полиэстер",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "print",
+       "values": [
+        {
+         "value": "однотонный",
+         "count": 16
+        },
+        {
+         "value": "клетка",
+         "count": 2
+        },
+        {
+         "value": "буквы и цифры",
+         "count": 1
+        },
+        {
+         "value": "транспорт",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "colors",
+       "values": [
+        {
+         "value": "белый",
+         "count": 10
+        },
+        {
+         "value": "голубой",
+         "count": 7
+        },
+        {
+         "value": "бежевый",
+         "count": 1
+        },
+        {
+         "value": "бордовый",
+         "count": 1
+        },
+        {
+         "value": "оливковый",
+         "count": 1
+        },
+        {
+         "value": "синий меланж",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "style",
+       "values": [
+        {
+         "value": "деловой",
+         "count": 9
+        },
+        {
+         "value": "школьный",
+         "count": 5
+        },
+        {
+         "value": "классический",
+         "count": 3
+        },
+        {
+         "value": "повседневный",
+         "count": 2
+        },
+        {
+         "value": "праздничный",
+         "count": 1
+        }
+       ]
+      },
+      {
+       "field": "extra",
+       "values": [
+        {
+         "value": "особенности",
+         "count": 2
+        },
+        {
+         "value": "состав",
+         "count": 2
+        },
+        {
+         "value": "кокетка",
+         "count": 1
+        },
+        {
+         "value": "манжеты",
+         "count": 1
+        },
+        {
+         "value": "подкладка",
+         "count": 1
+        },
+        {
+         "value": "покой",
+         "count": 1
+        }
+       ]
+      }
+     ],
+     "cards": [
+      {
+       "sku": 3148815994,
+       "name": "Рубашка YouLaLa",
+       "url": "https://www.ozon.ru/product/rubashka-youlala-3148815994/"
+      },
+      {
+       "sku": 4798355536,
+       "name": "Рубашка Школьники и школьницы",
+       "url": "https://www.ozon.ru/product/rubashka-shkolniki-i-shkolnitsy-4798355536/"
+      },
+      {
+       "sku": 1676041202,
+       "name": "Рубашка Brostem Рубашки для мальчиков",
+       "url": "https://www.ozon.ru/product/rubashka-brostem-rubashki-dlya-malchikov-1676041202/"
+      },
+      {
+       "sku": 1676041549,
+       "name": "Рубашка Brostem Рубашки для мальчиков",
+       "url": "https://www.ozon.ru/product/rubashka-brostem-rubashki-dlya-malchikov-1676041549/"
+      },
+      {
+       "sku": 292911368,
+       "name": "Рубашка Daniele Patrici школьная для мальчика с длинным рукавом",
+       "url": "https://www.ozon.ru/product/rubashka-daniele-patrici-shkolnaya-dlya-malchika-s-dlinnym-rukavom-292911368/"
+      },
+      {
+       "sku": 4268879119,
+       "name": "Рубашка DINO SESSUN",
+       "url": "https://www.ozon.ru/product/rubashka-dino-sessun-4268879119/"
+      },
+      {
+       "sku": 3789290019,
+       "name": "Одежда для крещения",
+       "url": "https://www.ozon.ru/product/odezhda-dlya-kreshcheniya-3789290019/"
+      },
+      {
+       "sku": 1693463365,
+       "name": "Рубашка Happyfox школьная для мальчиков",
+       "url": "https://www.ozon.ru/product/rubashka-happyfox-shkolnaya-dlya-malchikov-1693463365/"
+      },
+      {
+       "sku": 3849756689,
+       "name": "Рубашка Junion школьная прямая для мальчиков из хлопкового поплина, Яндекс Фабрика",
+       "url": "https://www.ozon.ru/product/rubashka-junion-shkolnaya-pryamaya-dlya-malchikov-iz-hlopkovogo-poplina-yandeks-fabrika-3849756689/"
+      },
+      {
+       "sku": 3849756699,
+       "name": "Рубашка Junion школьная прямая для мальчиков из хлопкового поплина, Яндекс Фабрика",
+       "url": "https://www.ozon.ru/product/rubashka-junion-shkolnaya-pryamaya-dlya-malchikov-iz-hlopkovogo-poplina-yandeks-fabrika-3849756699/"
+      },
+      {
+       "sku": 1667913603,
+       "name": "Рубашка Plombir.Lovers Школа",
+       "url": "https://www.ozon.ru/product/rubashka-plombir-lovers-shkola-1667913603/"
+      },
+      {
+       "sku": 5094588944,
+       "name": "Рубашка O'STIN для мальчика школьная с длинным рукавом",
+       "url": "https://www.ozon.ru/product/rubashka-o-stin-dlya-malchika-shkolnaya-s-dlinnym-rukavom-5094588944/"
+      },
+      {
+       "sku": 2284302623,
+       "name": "Рубашка TMK для мальчика школьная хлопковая 98-122",
+       "url": "https://www.ozon.ru/product/rubashka-tmk-dlya-malchika-shkolnaya-hlopkovaya-98-122-2284302623/"
+      },
+      {
+       "sku": 3217733022,
+       "name": "Рубашка TMK для мальчика в садик нарядная с длинным рукавом 98-116",
+       "url": "https://www.ozon.ru/product/rubashka-tmk-dlya-malchika-v-sadik-naryadnaya-s-dlinnym-rukavom-98-116-3217733022/"
+      },
+      {
+       "sku": 3450258702,
+       "name": "Рубашка TMK для мальчика в садик нарядная с коротким рукавом 98-116",
+       "url": "https://www.ozon.ru/product/rubashka-tmk-dlya-malchika-v-sadik-naryadnaya-s-korotkim-rukavom-98-116-3450258702/"
+      },
+      {
+       "sku": 1693232666,
+       "name": "Рубашка Happyfox школьная для мальчиков",
+       "url": "https://www.ozon.ru/product/rubashka-happyfox-shkolnaya-dlya-malchikov-1693232666/"
+      },
+      {
+       "sku": 1748571139,
+       "name": "Рубашка Cegisa для мальчика школьная на кнопках 116-170",
+       "url": "https://www.ozon.ru/product/rubashka-cegisa-dlya-malchika-shkolnaya-na-knopkah-116-170-1748571139/"
+      },
+      {
+       "sku": 1676041435,
+       "name": "Рубашка Brostem Рубашки для мальчиков",
+       "url": "https://www.ozon.ru/product/rubashka-brostem-rubashki-dlya-malchikov-1676041435/"
+      },
+      {
+       "sku": 2366368978,
+       "name": "Рубашка Jeestyle",
+       "url": "https://www.ozon.ru/product/rubashka-jeestyle-2366368978/"
+      },
+      {
+       "sku": 5142058057,
+       "name": "Рубашка Happy Baby",
+       "url": "https://www.ozon.ru/product/rubashka-happy-baby-5142058057/"
+      }
+     ]
+    }
+   ],
+   "other_cards": []
+  }
+ }
+}

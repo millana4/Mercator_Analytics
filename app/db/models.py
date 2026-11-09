@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import (BigInteger, Boolean, DateTime, Float, ForeignKey,
                         Integer, String, Text, UniqueConstraint, func)
-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -173,4 +173,32 @@ class WeatherHourly(Base):
     temp: Mapped[float | None] = mapped_column(Float)        # °C
     precip: Mapped[float | None] = mapped_column(Float)      # мм за час
     cloud: Mapped[float | None] = mapped_column(Float)       # облачность, %
-    code: Mapped[int | None] = mapped_column(Integer)        # код погоды WMO
+    code: Mapped[int | None] = mapped_column(Integer)  # код погоды WMO
+
+
+class ProdSpecsAnalysis(Base):
+    """Анализ страты для закупок (шаг 2): отобранные карточки и группы трендовых предметов.
+    Одна запись на страту. Отпечаток состава не изменился - анализ не пересчитывается;
+    после смены сета результат копируется из страты с тем же составом (copied_from_stratum)."""
+    __tablename__ = "prod_specs_analysis"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    source_set_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))
+    marketplace: Mapped[str] = mapped_column(String(64))
+    category: Mapped[str] = mapped_column(String(64))
+    geo: Mapped[str] = mapped_column(String(128))
+
+    stratum_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True))
+    stratum_label: Mapped[str] = mapped_column(String(512))
+    selection_hash: Mapped[str] = mapped_column(String(64))  # отпечаток отобранных sku
+    skus: Mapped[list] = mapped_column(JSONB)  # отобранные sku по порядку
+    n_cards: Mapped[int] = mapped_column(Integer)
+
+    model: Mapped[str | None] = mapped_column(String(64))
+    result: Mapped[dict] = mapped_column(JSONB)  # группы с описаниями и sku
+    copied_from_stratum: Mapped[UUID | None] = mapped_column(PGUUID(as_uuid=True))
+    analyzed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("stratum_id", name="uq_prod_specs_analysis_stratum"),
+    )

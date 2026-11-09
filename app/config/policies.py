@@ -112,6 +112,40 @@ NICHE_RESEND_INTERVAL_SECONDS: int = 60
 # сколько аналогов ниши отдаёт /niches/{id}/analogs
 NICHE_ANALOGS_LIMIT = 30
 
+# ---------- Рекомендации по закупкам ----------
+# Страта анализируется, если в ней не меньше PROD_SPECS_MIN_CARDS активных карточек
+# с фото и полным набором; в анализ идут не больше PROD_SPECS_MAX_CARDS — первые
+# по частоте в суточных снимках выдачи за PROD_SPECS_SEARCH_WINDOW_DAYS суток,
+# затем по средней позиции, затем по числу отзывов (у страт без снимков — по отзывам).
+PROD_SPECS_MIN_CARDS: int = 10
+PROD_SPECS_MAX_CARDS: int = 20
+PROD_SPECS_SEARCH_WINDOW_DAYS: int = 14
+# Группы трендовых предметов в страте: не больше PROD_SPECS_MAX_GROUPS,
+# в группе не меньше PROD_SPECS_MIN_GROUP_CARDS карточек.
+PROD_SPECS_MAX_GROUPS: int = 3
+PROD_SPECS_MIN_GROUP_CARDS: int = 3
+# Недельное задание: день недели (формат APScheduler) и время, МСК.
+PROD_SPECS_RUN_DAY: str = "sun"
+PROD_SPECS_RUN_TIME: tuple[int, int] = (4, 0)
+# Категории, для которых строятся рекомендации по закупкам (PROD_SPECS_CATEGORIES в .env,
+# через запятую). Логика привязана к категории: признаки и промпты описывают одежду
+# (фасон, фурнитура, декор, ткань, принт), поэтому на другую категорию одежды она
+# переносится добавлением в список, а на другие товарные группы (например, автотовары) -
+# нет: им нужны свои признаки и промпты.
+PROD_SPECS_CATEGORIES: tuple[str, ...] = tuple(
+    c.strip() for c in get_settings().prod_specs_categories.split(",") if c.strip())
+# Ожидание разметки карточек в ядре: не дольше WAIT_HOURS, проверка каждые POLL_MINUTES.
+# Ошибка модели на шаге 2 - до LLM_ATTEMPTS попыток подряд.
+PROD_SPECS_WAIT_HOURS: int = 3
+PROD_SPECS_POLL_MINUTES: int = 5
+PROD_SPECS_LLM_ATTEMPTS: int = 3
+# Ожидание ответа ядра на вызов модели, с: ядро ждёт Yandex до 120 с.
+PROD_SPECS_LLM_TIMEOUT_SECONDS: int = 150
+# Лимит токенов ответа модели на шаге 2 (группы с описаниями).
+PROD_SPECS_ANALYSIS_MAX_TOKENS: int = 3000
+# Пауза между попытками шага 2 после ошибки модели, с.
+PROD_SPECS_LLM_RETRY_PAUSE_SECONDS: int = 30
+
 def grid_times() -> tuple[time, ...]:
     """Точки сетки регуляризации, отсортированные по возрастанию."""
     return tuple(sorted(time(hour=h, minute=m) for h, m in GRID_TIMES))

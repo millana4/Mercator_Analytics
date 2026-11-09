@@ -37,6 +37,16 @@ def has_copy_block(sql_text: str, table: str) -> bool:
     return re.search(rf"^COPY public\.{table} \(", sql_text, re.MULTILINE) is not None
 
 
+_COPY_ESCAPES = {"b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t", "v": "\v"}
+
+
+def unescape_copy(value: str) -> str:
+    """Снимает экранирование текстового формата COPY: \\\\ -> \\, \\n, \\t и т. п.
+    Нужно для JSON в дампе: COPY удваивает обратные слэши и ломает его."""
+    return re.sub(r"\\(.)", lambda m: _COPY_ESCAPES.get(m.group(1), m.group(1)),
+                  value, flags=re.DOTALL)
+
+
 class MockConnector:
     """Читает выгруженные дампы. Схема на выходе - та же, что у RealConnector."""
 
@@ -159,6 +169,85 @@ class MockConnector:
         if date_from is not None:
             s = s[s["run_at"] >= date_from]
         return schema.conform(s, schema.SEARCH_SNAPSHOTS)
+
+    # ---------- 4а. Рекомендации по закупкам ----------
+    def get_prod_specs_candidates(self, set_id: str) -> pd.DataFrame:
+        """Карточки сета, пригодные для анализа: активные, открытое членство в страте сета,
+        есть адрес фото и полный набор. Дамп до V21 (нет колонок) - пусто."""
+        card = self._raw["card"]
+        sm = self._stratum_card
+        if sm is None or "image_url" not in card.columns or "content_txt" not in card.columns:
+            return schema.empty(schema.PROD_SPECS_CANDIDATES)
+        strata_ids = set(self.get_strata(set_id)["stratum_id"])
+        members = sm[sm["stratum_id"].isin(strata_ids) & sm["removed_at"].isna()][
+            ["card_id", "stratum_id"]]
+        c = (card.rename(columns={"id": "card_id"})
+             .drop(columns=["stratum_id"], errors="ignore")
+             .merge(members, on="card_id", how="inner"))
+        suitable = ((c["status"] == "active") & c["image_url"].notna() & (c["image_url"] != "")
+                    & c["content_txt"].notna())
+        return schema.conform(c[suitable], schema.PROD_SPECS_CANDIDATES)
+
+    def get_search_ranking(self, set_id: str, date_from: datetime) -> pd.DataFrame:
+        """В скольких снимках выдачи сета с date_from встретилась карточка в страте и её
+        средняя позиция - из свежей выгрузки ch_search_*.csv; выгрузки нет - пусто."""
+        files = sorted(self.data_dir.glob("ch_search_*.csv"))
+        if not files:
+            return schema.empty(schema.SEARCH_RANKING)
+        s = pd.read_csv(files[-1], na_values=["\\N"],
+                        usecols=["run_at", "set_id", "stratum_id", "sku", "position"],
+                        dtype={"set_id": str, "stratum_id": str, "sku": str})
+        s = s[s["set_id"] == str(set_id)].copy()
+        s["run_at"] = pd.to_datetime(s["run_at"], errors="coerce")
+        s = s[s["run_at"] >= date_from]
+        if s.empty:
+            return schema.empty(schema.SEARCH_RANKING)
+        ranking = (s.groupby(["stratum_id", "sku"])
+                   .agg(appearances=("run_at", "nunique"), mean_position=("position", "mean"))
+                   .reset_index())
+        return schema.conform(ranking, schema.SEARCH_RANKING)
+
+    def get_reviews(self, skus: list[str]) -> pd.DataFrame:
+        """Число отзывов по последнему замеру каждого sku - из ch_measurement_*.csv."""
+        wanted = {str(s) for s in skus}
+        m = pd.read_csv(self._latest("ch_measurement_*.csv"), na_values=["\\N"],
+                        usecols=["sku", "parsed_at", "reviews_count"], dtype={"sku": str})
+        m = m[m["sku"].isin(wanted)].copy()
+        if m.empty:
+            return schema.empty(schema.REVIEWS)
+        m["parsed_at"] = pd.to_datetime(m["parsed_at"], errors="coerce")
+        m = m.sort_values("parsed_at").drop_duplicates("sku", keep="last")
+        return schema.conform(m, schema.REVIEWS)
+
+    def get_prod_specs_cards(self, card_ids: list[str]) -> pd.DataFrame:
+        """Признаки карточек от нейросети из дампа (таблица prod_specs_card, V22 ядра).
+        Дамп снят до V22 - пусто, а не ошибка."""
+        if not has_copy_block(self._dump, "prod_specs_card"):
+            return self._prod_specs_cards_from_file(card_ids)
+        t = parse_copy_block(self._dump, "prod_specs_card")
+        t = t[t["card_id"].isin(set(card_ids))].copy()
+        t["attrs"] = t["attrs"].apply(lambda a: json.loads(unescape_copy(a)))
+        return schema.conform(t, schema.PROD_SPECS_CARDS)
+
+    def _prod_specs_cards_from_file(self, card_ids: list[str]) -> pd.DataFrame:
+        """Дамп снят до V22: признаки из свежего файла prod_specs_card_*.jsonl (выгрузка
+        настоящего прогона, по строке на карточку); файла нет - пусто."""
+        files = sorted(self.data_dir.glob("prod_specs_card_*.jsonl"))
+        if not files:
+            return schema.empty(schema.PROD_SPECS_CARDS)
+        wanted = set(card_ids)
+        rows = []
+        with files[-1].open(encoding="utf-8") as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                r = json.loads(line)
+                if str(r["card_id"]) in wanted:
+                    rows.append({"card_id": str(r["card_id"]), "prompt_version": r["prompt_version"],
+                                 "attrs": r["attrs"]})
+        if not rows:
+            return schema.empty(schema.PROD_SPECS_CARDS)
+        return schema.conform(pd.DataFrame(rows), schema.PROD_SPECS_CARDS)
 
     # ---------- 5. Ниши ----------
     @cached_property

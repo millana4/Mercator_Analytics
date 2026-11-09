@@ -37,9 +37,13 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = True
     debug_charts: bool = False
 
+    # Категории, для которых строятся рекомендации по закупкам (через запятую)
+    prod_specs_categories: str = "kids_clothing"
+
     jwt_secret_key: str
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
+
 
     @property
     def analytics_dsn(self) -> str:

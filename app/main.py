@@ -3,7 +3,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import health, analytics, auth, subscriptions, cards, niches, search_dynamics, internal, admin
+from app.api import (health, analytics, auth, subscriptions, cards, niches, search_dynamics,
+                     internal, admin, prod_specs)
 from app.config.logging_setup import setup_logging
 from app.config.settings import get_settings
 from app.scheduler import shutdown_scheduler, start_scheduler
@@ -41,3 +42,4 @@ app.include_router(niches.router)
 app.include_router(search_dynamics.router)
 app.include_router(internal.router)
 app.include_router(admin.router)
+app.include_router(prod_specs.router)

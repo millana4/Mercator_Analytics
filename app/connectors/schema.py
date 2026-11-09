@@ -69,6 +69,37 @@ SEARCH_SNAPSHOTS: dict[str, str] = {
     "sku": "string",
 }
 
+# Рекомендации по закупкам. Карточка, пригодная для анализа: активный член страты
+# (открытое членство) с адресом фото и полным набором (content_txt).
+PROD_SPECS_CANDIDATES: dict[str, str] = {
+    "stratum_id": "string",
+    "card_id": "string",
+    "sku": "string",
+    "name": "string",
+    "url": "string",
+}
+
+# Карточка в выдаче страты за окно: в скольких снимках встретилась и средняя позиция.
+SEARCH_RANKING: dict[str, str] = {
+    "stratum_id": "string",
+    "sku": "string",
+    "appearances": "Int64",
+    "mean_position": "Float64",
+}
+
+# Число отзывов по последнему замеру.
+REVIEWS: dict[str, str] = {
+    "sku": "string",
+    "reviews_count": "Int64",
+}
+
+# Признаки карточки от нейросети (prod_specs_card ядра): attrs - словарь признаков.
+PROD_SPECS_CARDS: dict[str, str] = {
+    "card_id": "string",
+    "prompt_version": "string",
+    "attrs": "object",
+}
+
 # Ниша: niche_id = niche.external_id ядра = niche.id аналитики.
 # status - статус обработки в ядре (new ... active, failed, deleted).
 NICHES: dict[str, str] = {

@@ -80,6 +80,26 @@ WHERE n.external_id = :niche_id
 """
 
 
+# Карточки, пригодные для рекомендаций по закупкам: активные члены страт сета
+# (открытое членство) с адресом фото и полным набором карточки (V21 ядра).
+SQL_PROD_SPECS_CANDIDATES = """
+SELECT sm.stratum_id::text AS stratum_id, c.id::text AS card_id, c.sku, c.name, c.url
+FROM card c
+JOIN stratum_card sm ON sm.card_id = c.id AND sm.removed_at IS NULL
+JOIN stratum st ON st.id = sm.stratum_id
+JOIN subcategory sc ON sc.id = st.subcategory_id
+WHERE sc.set_id = :set_id AND c.status = 'active'
+  AND c.image_url IS NOT NULL AND c.image_url <> '' AND c.content_txt IS NOT NULL
+"""
+
+# Признаки карточек от нейросети (V22 ядра)
+SQL_PROD_SPECS_CARDS = """
+SELECT card_id::text AS card_id, prompt_version, attrs
+FROM prod_specs_card
+WHERE card_id::text = ANY(:card_ids)
+"""
+
+
 class RealConnector:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -108,6 +128,42 @@ class RealConnector:
     def get_niche_cards(self, niche_id: str) -> pd.DataFrame:
         return schema.conform(self._query(SQL_NICHE_CARDS, niche_id=niche_id),
                               schema.NICHE_CARDS)
+
+    def get_prod_specs_candidates(self, set_id: str) -> pd.DataFrame:
+        return schema.conform(self._query(SQL_PROD_SPECS_CANDIDATES, set_id=set_id),
+                              schema.PROD_SPECS_CANDIDATES)
+
+    def get_prod_specs_cards(self, card_ids: list[str]) -> pd.DataFrame:
+        if not card_ids:
+            return schema.empty(schema.PROD_SPECS_CARDS)
+        return schema.conform(self._query(SQL_PROD_SPECS_CARDS, card_ids=list(card_ids)),
+                              schema.PROD_SPECS_CARDS)
+
+    def get_search_ranking(self, set_id: str, date_from: datetime) -> pd.DataFrame:
+        # алиасы не совпадают с колонками таблицы: в ClickHouse алиас перекрывает колонку
+        sql = ("SELECT toString(stratum_id) AS stratum_key, toString(sku) AS sku_key,"
+               " uniqExact(run_at) AS appearances, avg(position) AS mean_position"
+               " FROM search_snapshot"
+               " WHERE set_id = {set_id:UUID} AND run_at >= {date_from:DateTime}"
+               " GROUP BY stratum_key, sku_key")
+        df = self._ch_client().query_df(
+            sql, parameters={"set_id": str(set_id), "date_from": date_from})
+        if df.empty:
+            return schema.empty(schema.SEARCH_RANKING)
+        df = df.rename(columns={"stratum_key": "stratum_id", "sku_key": "sku"})
+        return schema.conform(df, schema.SEARCH_RANKING)
+
+    def get_reviews(self, skus: list[str]) -> pd.DataFrame:
+        ids = sorted({int(s) for s in skus if str(s).isdigit()})
+        if not ids:
+            return schema.empty(schema.REVIEWS)
+        sql = ("SELECT toString(sku) AS sku_key, argMax(reviews_count, parsed_at) AS reviews_last"
+               " FROM measurement WHERE sku IN {skus:Array(Int64)} GROUP BY sku_key")
+        df = self._ch_client().query_df(sql, parameters={"skus": ids})
+        if df.empty:
+            return schema.empty(schema.REVIEWS)
+        df = df.rename(columns={"sku_key": "sku", "reviews_last": "reviews_count"})
+        return schema.conform(df, schema.REVIEWS)
 
     def _ch_client(self):
         s = self.settings

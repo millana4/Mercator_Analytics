@@ -8,7 +8,9 @@ from apscheduler.triggers.interval import IntervalTrigger
 from app.analytics.runner import run_all
 from app.config.policies import (NICHE_RESEND_INTERVAL_SECONDS, analytics_run_times,
                                  cron_expression)
+from app.config import policies
 from app.niches.service import resend_to_core
+from app.prod_specs.runner import run_prod_specs
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,16 @@ def start_scheduler() -> BackgroundScheduler:
         id="niche_resend", replace_existing=True,
         max_instances=1,           # досылка не накладывается сама на себя
         coalesce=True,             # пропущенные запуски схлопываются в один
+    )
+    hour, minute = policies.PROD_SPECS_RUN_TIME
+    scheduler.add_job(
+        run_prod_specs,
+        CronTrigger(day_of_week=policies.PROD_SPECS_RUN_DAY, hour=hour, minute=minute,
+                    timezone="Europe/Moscow"),
+        id="prod_specs_run", replace_existing=True,
+        max_instances=1,           # запуск ждёт разметку до нескольких часов и не накладывается
+        coalesce=True,
+        misfire_grace_time=3600,
     )
     scheduler.start()
 
