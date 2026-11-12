@@ -107,11 +107,9 @@ def _run_one(module, df: pd.DataFrame, *, set_id: str, category: str, level: str
                     e["duration_days"], e["participation_pct"] * 100,
                     common.log_to_pct(e["magnitude_mean_log"]))
 
-    # кривая рынка - только по точкам с достаточным срезом
+    # кривая рынка - цепной индекс, только по точкам с достаточным срезом
     level_col = LEVEL_COLUMNS[module.ALGORITHM]
-    in_slice = prepared[prepared["parsed_at"].isin(ok_points)]
-    curve = (in_slice.groupby("parsed_at")[level_col].mean()
-             .reset_index().rename(columns={level_col: "level_value"}))
+    curve = common.market_curve(prepared, level_col, ok_points)
 
     return LevelResult(
         set_id=set_id, category=category, level=level, level_key=level_key,

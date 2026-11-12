@@ -42,6 +42,25 @@ def valid_points(df: pd.DataFrame, min_cards: int) -> pd.Index:
     return counts.index[counts >= min_cards]
 
 
+def market_curve(prepared: pd.DataFrame, level_col: str, ok_points) -> pd.DataFrame:
+    """Кривая рынка для графика: цепной индекс по точкам со срезом не меньше порога.
+
+    Первая точка - средний уровень (лог цены) карточек среза. Дальше уровень растёт на среднее
+    изменение карточек от их предыдущей точки среза: в среднем берутся только карточки, которые
+    есть в обеих точках. Среднее по срезу «прыгало» бы, когда карточки сета входят в срез и
+    выходят из него; цепной индекс показывает только движение цен.
+    Возвращает parsed_at, level_value."""
+    points = pd.DatetimeIndex(sorted(ok_points))
+    if points.empty:
+        return pd.DataFrame({"parsed_at": pd.DatetimeIndex([]), "level_value": pd.Series(dtype="float64")})
+    in_slice = prepared[prepared["parsed_at"].isin(points)]
+    step = in_slice.groupby("sku")[level_col].diff()
+    mean_step = step.groupby(in_slice["parsed_at"]).mean().reindex(points).fillna(0.0)
+    mean_step.iloc[0] = 0.0                       # первая точка - якорь
+    start_level = in_slice.loc[in_slice["parsed_at"] == points[0], level_col].mean()
+    return pd.DataFrame({"parsed_at": points, "level_value": (start_level + mean_step.cumsum()).to_numpy()})
+
+
 # ---------- 2. Сглаживание: одна реализация, span приходит от алгоритма ----------
 def ewm_smooth(df: pd.DataFrame, source_col: str, span: int) -> pd.Series:
     """EWMA по каждому ряду отдельно. alpha = 2/(span+1)."""

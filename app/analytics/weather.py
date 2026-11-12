@@ -47,12 +47,14 @@ def fetch_hourly(lat: float, lon: float, start: date, end: date) -> pd.DataFrame
 
 
 def fetch_range(cached_min: date | None, cached_max: date | None, start: date, end: date,
-                refresh_days: int) -> tuple[date, date]:
+                refresh_days: int) -> tuple[date, date] | None:
     """Какие сутки докачать: кеш не покрывает start - всё с start; иначе - от последних
-    refresh_days суток кеша (их Open-Meteo уточняет) до end."""
+    refresh_days суток кеша (их Open-Meteo уточняет) до end. Окно целиком старше этих суток
+    (кеш общий на гео, а ряд сета заканчивается раньше) - докачивать нечего, None."""
     if cached_min is None or cached_max is None or cached_min > start:
         return start, end
-    return max(start, cached_max - timedelta(days=refresh_days)), end
+    day_from = max(start, cached_max - timedelta(days=refresh_days))
+    return (day_from, end) if day_from <= end else None
 
 
 def load_weather(session: Session, geo: str, start: datetime, end: datetime,
@@ -67,14 +69,16 @@ def load_weather(session: Session, geo: str, start: datetime, end: datetime,
     cached_min, cached_max = session.execute(
         select(func.min(WeatherHourly.time), func.max(WeatherHourly.time))
         .where(WeatherHourly.geo == geo)).one()
-    day_from, day_to = fetch_range(cached_min.date() if cached_min else None,
-                                   cached_max.date() if cached_max else None,
-                                   start.date(), end.date(), policies.WEATHER_REFRESH_DAYS)
-    try:
-        fresh = fetch(coords[0], coords[1], day_from, day_to)
-    except (httpx.HTTPError, ValueError, KeyError) as e:
-        logger.warning("Погода: Open-Meteo недоступен (%s) - берём кеш", e)
-        fresh = None
+    span = fetch_range(cached_min.date() if cached_min else None,
+                       cached_max.date() if cached_max else None,
+                       start.date(), end.date(), policies.WEATHER_REFRESH_DAYS)
+    fresh = None
+    if span is not None:                    # None - окно старше обновляемых суток кеша, докачивать нечего
+        day_from, day_to = span
+        try:
+            fresh = fetch(coords[0], coords[1], day_from, day_to)
+        except (httpx.HTTPError, ValueError, KeyError) as e:
+            logger.warning("Погода: Open-Meteo недоступен (%s) - берём кеш", e)
 
     if fresh is not None and not fresh.empty:
         session.execute(delete(WeatherHourly).where(
