@@ -13,14 +13,18 @@ ALGORITHM = "MACD"
 # ---------- Настройки алгоритма ----------
 @dataclass(frozen=True)
 class MacdParams:
-    span_fast: int = 3              # быстрая EMA, шагов сетки
-    span_slow: int = 9              # медленная EMA, считается независимо (не каскад)
-    span_signal: int = 3            # сглаживание самой macd_line
-    window_days: int = 3            # окно нужно для знака направления и величины
-    line_threshold: float = 0.0571  # минимум |macd_line| в момент пересечения
-    # p0: доля карточек с флагом в спокойное время (медиана по точкам, большее
-    # из направлений; замер 22.10: одежда 0,0116, детская 0,0117)
-    background_rate: float = 0.012
+    span_fast: int = 2              # быстрая EMA, шагов сетки
+    span_slow: int = 6              # медленная EMA, считается независимо (не каскад)
+    span_signal: int = 2            # сглаживание самой macd_line
+    window_days: float = 2          # окно нужно для знака направления и величины, суток (4 шага)
+    line_threshold: float = 0.01    # минимум |macd_line| в момент пересечения
+    # p0: фон - доля карточек с флагом в спокойное время (подбор 12.11 на SS26, AW27).
+    # Категория: наименьший фон, при котором в спокойных точках событий нет.
+    # Подкатегория и ниша: на малой выборке карточки двигаются вместе, число ложных флагов
+    # рассеяно шире биномиального; фон подобран так, чтобы ложных точек было не больше
+    # FALSE_ALARM_MAX (замер на 30 карточках: 0,5%)
+    background_rate: float = 0.0489         # категория
+    background_rate_small: float = 0.1045   # подкатегория и ниша
     min_points: int = 9             # разгон медленной EMA
     min_cards: int = 25
     n_bootstrap: int = 1000
@@ -29,7 +33,11 @@ class MacdParams:
 
     @property
     def window_steps(self) -> int:
-        return self.window_days * GRID_STEPS_PER_DAY
+        return int(round(self.window_days * GRID_STEPS_PER_DAY))
+
+    def background_rate_for(self, level: str) -> float:
+        """Фон для уровня: category - категория, остальные уровни (subcategory, niche) - малая выборка."""
+        return self.background_rate if level == "category" else self.background_rate_small
 
 
 PARAMS = MacdParams()
@@ -67,12 +75,13 @@ def prepare(df: pd.DataFrame, p: MacdParams = PARAMS) -> pd.DataFrame:
     return df
 
 
-def run(df: pd.DataFrame, *, label: str = "вся категория",
+def run(df: pd.DataFrame, *, label: str = "вся категория", level: str = "category",
         p: MacdParams = PARAMS, min_cards: int | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """min_cards - минимум карточек в срезе точки (порог уровня); по умолчанию p.min_cards."""
+    """level - уровень (category | subcategory | niche): от него зависит фон для порога события.
+    min_cards - минимум карточек в срезе точки (порог уровня); по умолчанию p.min_cards."""
     prepared = prepare(df, p)
     events = detect_events(prepared, algorithm=ALGORITHM, label=label,
-                           background_rate=p.background_rate, false_alarm=FALSE_ALARM_MAX,
+                           background_rate=p.background_rate_for(level), false_alarm=FALSE_ALARM_MAX,
                            min_cards=p.min_cards if min_cards is None else min_cards,
                            n_bootstrap=p.n_bootstrap, ci_alpha=p.ci_alpha,
                            rng=np.random.default_rng(p.random_seed))

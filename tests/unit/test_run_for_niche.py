@@ -67,7 +67,7 @@ def test_niche_cards_without_strata_are_calculated():
         assert r.sufficient, r.insufficient_reason
         assert (r.level, r.set_id, r.level_key) == ("niche", NICHE_ID, NICHE_ID)
         assert r.category == "kids_clothing"
-        assert r.n_cards == 30        # target_count; остальные 5 - запас на ротацию
+        assert r.n_cards == 35        # все годные карточки ниши, верхней границы нет
 
 
 def test_too_few_cards_insufficient_for_all_algorithms():

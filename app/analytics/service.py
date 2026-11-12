@@ -76,7 +76,7 @@ def _run_one(module, df: pd.DataFrame, *, set_id: str, category: str, level: str
     порога карточек (максимум из порога алгоритма и гейта уровня). Пригодных
     точек меньше min_points алгоритма - результат неуспешный."""
     slice_min = max(module.PARAMS.min_cards, min_cards)
-    events, prepared = module.run(df.copy(), label=level_key, min_cards=slice_min)
+    events, prepared = module.run(df.copy(), label=level_key, level=level, min_cards=slice_min)
     n_cards = prepared["sku"].nunique()
 
     ok_points = common.valid_points(prepared, slice_min)

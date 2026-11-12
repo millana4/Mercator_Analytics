@@ -254,14 +254,15 @@ def select_for_subcategory(subcategory_key: tuple[str, int, str], strata: pd.Dat
                            cards: pd.DataFrame, panel: pd.DataFrame, *,
                            min_points: int, min_cards: int, as_of=None) -> Selection:
     """subcategory_key = (гендер, слой, название). Квот по стратам здесь нет:
-    подкатегория однородна, берём min_cards карточек с самыми длинными рядами."""
+    подкатегория однородна, в расчёт идут все годные карточки (верхней границы нет:
+    чем больше срез, тем выше мощность). Годных меньше min_cards - расчёта нет."""
     gender, layer, title = subcategory_key
     ids = strata[(strata["gender"] == gender) & (strata["layer"] == layer)
                  & (strata["subcategory"] == title)]["stratum_id"]
 
     pool = eligible_cards(cards, panel, min_points, as_of)
     pool = pool[pool["stratum_id"].isin(set(ids))]
-    taken = pool.head(min_cards)["card_id"].tolist()
+    taken = pool["card_id"].tolist()
 
     if len(taken) < min_cards:
         return Selection(card_ids=[], total_quota=min_cards, sufficient=False,
@@ -273,12 +274,11 @@ def select_for_subcategory(subcategory_key: tuple[str, int, str], strata: pd.Dat
 # ---------- 6. Уровень НИШИ: ближайшие к референсу ----------
 def select_for_niche(cards: pd.DataFrame, panel: pd.DataFrame, *, target_count: int,
                      min_points: int, min_cards: int, as_of=None) -> Selection:
-    """cards - состав ниши (схема NICHE_CARDS). Пригодные карточки сортируются
-    по близости к референсу, при равной близости - по длине ряда; берём не больше
-    target_count. Ядро собирает plan_count с запасом на ротацию, в анализ идут ближайшие."""
+    """cards - состав ниши (схема NICHE_CARDS). В расчёт идут все годные карточки ниши
+    (верхней границы нет). Ядро собирает plan_count с запасом на ротацию.
+    target_count - плановый размер ниши, нужен только для total_quota."""
     pool = eligible_cards(cards, panel, min_points, as_of)
-    pool = pool.sort_values("similarity", ascending=False, na_position="last", kind="stable")
-    taken = pool.head(target_count)["card_id"].tolist()
+    taken = pool["card_id"].tolist()
 
     if len(taken) < min_cards:
         return Selection(card_ids=[], total_quota=target_count, sufficient=False,

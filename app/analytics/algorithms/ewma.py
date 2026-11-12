@@ -13,13 +13,17 @@ ALGORITHM = "EWMA"
 # ---------- Настройки алгоритма ----------
 @dataclass(frozen=True)
 class EwmaParams:
-    span_level_1: int = 3           # первое сглаживание, шагов сетки
-    span_level_2: int = 5           # второе сглаживание, поверх первого
-    window_days: int = 3            # окно накопленного изменения
-    card_threshold: float = 0.1202  # порог карточки за окно, лог-единицы (~12.8%)
-    # p0: доля карточек с флагом в спокойное время (медиана по точкам, большее
-    # из направлений; замер 22.10: одежда 0,0608, детская 0,0589)
-    background_rate: float = 0.061
+    span_level_1: int = 1           # первое сглаживание, шагов сетки (1 - без сглаживания)
+    span_level_2: int = 2           # второе сглаживание, поверх первого
+    window_days: float = 1.5        # окно накопленного изменения, суток (1,5 суток = 3 шага)
+    card_threshold: float = 0.04    # порог карточки за окно, лог-единицы (~4,1%)
+    # p0: фон - доля карточек с флагом в спокойное время (подбор 12.11 на SS26, AW27).
+    # Категория: наименьший фон, при котором в спокойных точках событий нет.
+    # Подкатегория и ниша: на малой выборке карточки двигаются вместе, число ложных флагов
+    # рассеяно шире биномиального; фон подобран так, чтобы ложных точек было не больше
+    # FALSE_ALARM_MAX (замер на 30 карточках: 0,8%)
+    background_rate: float = 0.1273         # категория
+    background_rate_small: float = 0.2015   # подкатегория и ниша
     min_points: int = 5             # каскаду хватает пяти точек
     min_cards: int = 25             # минимум карточек в срезе
     n_bootstrap: int = 1000
@@ -28,7 +32,11 @@ class EwmaParams:
 
     @property
     def window_steps(self) -> int:
-        return self.window_days * GRID_STEPS_PER_DAY
+        return int(round(self.window_days * GRID_STEPS_PER_DAY))
+
+    def background_rate_for(self, level: str) -> float:
+        """Фон для уровня: category - категория, остальные уровни (subcategory, niche) - малая выборка."""
+        return self.background_rate if level == "category" else self.background_rate_small
 
 
 PARAMS = EwmaParams()
@@ -54,13 +62,14 @@ def prepare(df: pd.DataFrame, p: EwmaParams = PARAMS) -> pd.DataFrame:
     return df
 
 
-def run(df: pd.DataFrame, *, label: str = "вся категория",
+def run(df: pd.DataFrame, *, label: str = "вся категория", level: str = "category",
         p: EwmaParams = PARAMS, min_cards: int | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Возвращает (события, подготовленная панель).
+    level - уровень (category | subcategory | niche): от него зависит фон для порога события.
     min_cards - минимум карточек в срезе точки (порог уровня); по умолчанию p.min_cards."""
     prepared = prepare(df, p)
     events = detect_events(prepared, algorithm=ALGORITHM, label=label,
-                           background_rate=p.background_rate, false_alarm=FALSE_ALARM_MAX,
+                           background_rate=p.background_rate_for(level), false_alarm=FALSE_ALARM_MAX,
                            min_cards=p.min_cards if min_cards is None else min_cards,
                            n_bootstrap=p.n_bootstrap, ci_alpha=p.ci_alpha,
                            rng=np.random.default_rng(p.random_seed))

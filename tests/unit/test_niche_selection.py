@@ -1,4 +1,4 @@
-# ---------- Отбор карточек ниши: близость, лимит target_count, гейт ----------
+# ---------- Отбор карточек ниши: все годные, гейт ----------
 import pandas as pd
 
 from app.analytics.selection import select_for_niche
@@ -31,28 +31,23 @@ def _panel(points: dict[str, int], empty_price: dict[str, int] | None = None):
     return df
 
 
-def test_takes_closest_up_to_target_count():
+def test_takes_all_eligible_without_upper_limit():
+    # годных больше target_count: берутся все, target_count остаётся только плановой квотой
     ids = [f"c{i:02d}" for i in range(35)]
     cards = _cards([(cid, "active", 0.99 - i * 0.001) for i, cid in enumerate(ids)])
     sel = select_for_niche(cards, _panel({cid: 10 for cid in ids}),
                            target_count=30, min_points=5, min_cards=26)
     assert sel.sufficient
-    assert sel.card_ids == ids[:30]
+    assert sorted(sel.card_ids) == ids
     assert sel.total_quota == 30
 
 
-def test_equal_similarity_longer_series_first():
-    cards = _cards([("short", "active", 0.95), ("long", "active", 0.95)])
-    sel = select_for_niche(cards, _panel({"short": 6, "long": 12}),
-                           target_count=1, min_points=5, min_cards=1)
-    assert sel.card_ids == ["long"]
-
-
-def test_missing_similarity_goes_last():
+def test_similarity_does_not_limit_selection():
+    # карточка без близости и с низкой близостью тоже в расчёте
     cards = _cards([("no_sim", "active", None), ("with_sim", "active", 0.50)])
     sel = select_for_niche(cards, _panel({"no_sim": 20, "with_sim": 6}),
                            target_count=1, min_points=5, min_cards=1)
-    assert sel.card_ids == ["with_sim"]
+    assert sorted(sel.card_ids) == ["no_sim", "with_sim"]
 
 
 def test_inactive_short_and_out_of_stock_excluded():
