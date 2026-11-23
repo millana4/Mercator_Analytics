@@ -90,7 +90,7 @@ DEBUG_DIR: str = "/srv/debug"
 # ---------- Товарные ниши ----------
 # Видимость доступных ниш: "all" — все ниши подписанных связок (категория +
 # маркетплейс + гео), "own" — только ниши пользователя (user_niche).
-NICHE_VISIBILITY: str = "all"
+NICHE_VISIBILITY: str = "own"
 
 # Бесплатных активных ниш на пользователя.
 FREE_NICHES_INTERNAL: int = 3
