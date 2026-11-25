@@ -1,13 +1,15 @@
-# ---------- Регуляризация с допуском 24 ч и пригодность карточки по окну алгоритма ----------
+# ---------- Регуляризация с допуском MAX_MEASUREMENT_AGE_HOURS и пригодность карточки по окну алгоритма ----------
 import pandas as pd
 
 from app.analytics.selection import eligible_cards
+from app.config.policies import MAX_MEASUREMENT_AGE_HOURS
 from app.etl.regularize import build_regular_panel
 
 AS_OF = pd.Timestamp("2026-10-22 12:37")    # точка расчёта
 STEP = pd.Timedelta(hours=12)
 SLOTS = 20
 EWMA_POINTS, MACD_POINTS = 5, 9
+GAP_SLOTS = MAX_MEASUREMENT_AGE_HOURS // 12   # столько подряд пропущенных слотов даёт пробел
 
 
 def _meas(skip=(), no_price=()):
@@ -23,8 +25,9 @@ def _meas(skip=(), no_price=()):
 
 
 def _gap(back):
-    """Пропуск двух слотов даёт пробел ровно в точке AS_OF - back*12 ч."""
-    return (back, back + 1)
+    """Пропуск GAP_SLOTS слотов подряд даёт пробел ровно в точке AS_OF - back*12 ч:
+    последний замер к ней старше допуска, соседние точки ещё покрыты."""
+    return tuple(range(back, back + GAP_SLOTS))
 
 
 def _point(panel, back):
@@ -38,12 +41,26 @@ def _eligible(meas, min_points):
 
 
 # ---------- Регуляризация ----------
-def test_no_measurement_for_24h_is_gap_filled_from_previous_point():
+def test_no_measurement_for_max_age_is_gap_filled_from_previous_point():
     panel = build_regular_panel(_meas(skip=_gap(4)), date_to=AS_OF)
     gap, prev = _point(panel, 4), _point(panel, 5)
     assert not gap["is_valid"]
     assert gap["card_price"] == prev["card_price"]
     assert _point(panel, 3)["is_valid"] and _point(panel, 5)["is_valid"]
+
+
+def test_missing_25h_is_not_a_gap_within_tolerance():
+    # два слота подряд без замера: последний замер 25 ч назад, в допуске
+    panel = build_regular_panel(_meas(skip=(0, 1)), date_to=AS_OF)
+    assert _point(panel, 0)["is_valid"]
+
+
+def test_tolerance_boundary():
+    # 3 слота подряд без замера - 37 ч, годна; 4 слота - 49 ч, пробел
+    ok = build_regular_panel(_meas(skip=(0, 1, 2)), date_to=AS_OF)
+    gap = build_regular_panel(_meas(skip=(0, 1, 2, 3)), date_to=AS_OF)
+    assert _point(ok, 0)["is_valid"]
+    assert not _point(gap, 0)["is_valid"]
 
 
 def test_out_of_stock_is_gap_filled_from_previous_point():
@@ -54,7 +71,7 @@ def test_out_of_stock_is_gap_filled_from_previous_point():
 
 
 def test_daily_crawl_keeps_every_point_valid():
-    # замер раз в сутки (каждый второй слот) - каждая точка покрыта замером не старше 24 ч
+    # замер раз в сутки (каждый второй слот) - каждая точка покрыта замером не старше допуска
     panel = build_regular_panel(_meas(skip=tuple(range(1, SLOTS, 2))), date_to=AS_OF)
     recent = panel[panel["parsed_at"] > AS_OF - 10 * STEP]
     assert recent["is_valid"].all()
@@ -68,7 +85,7 @@ def test_grid_stops_at_calculation_point():
 
 
 # ---------- Пригодность по окну алгоритма ----------
-def test_gap_24h_ago_excludes_both():
+def test_gap_in_recent_window_excludes_both():
     meas = _meas(skip=_gap(2))
     assert _eligible(meas, EWMA_POINTS) == []
     assert _eligible(meas, MACD_POINTS) == []
@@ -92,3 +109,7 @@ def test_out_of_stock_at_calculation_point_excluded():
 
 def test_no_fresh_measurement_at_calculation_point_excluded():
     assert _eligible(_meas(skip=_gap(0)), EWMA_POINTS) == []
+
+
+def test_missing_25h_at_calculation_point_still_eligible():
+    assert _eligible(_meas(skip=(0, 1)), EWMA_POINTS) == ["c1"]

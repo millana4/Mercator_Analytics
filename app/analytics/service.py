@@ -58,7 +58,7 @@ def _log_selection(level: str, level_key: str, algorithm: str, sel: Selection) -
 
 
 def _log_panel(panel: pd.DataFrame) -> None:
-    """Сводка по регулярной панели: период и доля годных точек (замер за 24 ч с ценой)."""
+    """Сводка по регулярной панели: период и доля годных точек (замер за 48 ч с ценой)."""
     logger.info("Панель: точек сетки=%d, период %s - %s, доля годных точек=%.1f%%",
                 panel["parsed_at"].nunique(), panel["parsed_at"].min(),
                 panel["parsed_at"].max(), panel["is_valid"].astype(bool).mean() * 100)
